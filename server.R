@@ -16,6 +16,16 @@ shinyServer(function(input, output, session) {
         }
       })
     }
+      
+    if (input$tabs == "ViewCalculation") {
+      output$outPutCalc <- renderText({
+      if (isCalculated == FALSE) {
+        paste0("No calculation have been done!")
+      } else {
+        paste0("Calculations are finished!")
+      }
+      })
+  }
   })
   #####
   ######
@@ -263,15 +273,34 @@ shinyServer(function(input, output, session) {
                     style = "color: steelblue")
       )
     )
+    
+   
   },  ignoreInit = TRUE)
   
   observeEvent(input$measurementPickerKineticsView, {
-    
   },  ignoreInit = TRUE)
-  ###
   
-  updateCurSpecKineticsView <- function(series) {
+  output$kineticsViewPlot <- renderPlot({
+    plot(createKinPlot())
+  })
+  ###
+  ###Kinetic Plot###
+  createKinPlot <- function() {
+    data_list <- choseSelectedList(dataList[[input$seriesPickerKineticsView]][[input$typePickerKineticsView]],
+                                   input$measurementPickerKineticsView)
+    combinedList <-
+      combineListtoLong(data_list)
+    kineticPlot <-
+      createKineticPlot(combinedList, style = input$curKineticsStyle,
+                        pTitle = paste0(input$seriesPickerKineticsView,
+                                        ": ", input$typePickerKineticsView)
+      )
     
+    if(all(dim(kineticPlot$data) == c(0,0))) kineticPlot = ggplot()
+    return(kineticPlot)
+  }
+  ###
+  updateCurSpecKineticsView <- function(series) {
     curSpec <-
       getSettings(dataList[[series]], "currentSpec")
     
@@ -306,6 +335,12 @@ shinyServer(function(input, output, session) {
     }
   }
   ####
+  if (!interactive()) {
+    session$onSessionEnded(function() {
+      stopApp()
+      q("no")
+    })
+  }
 })
 
 #####Functions
@@ -338,7 +373,7 @@ prepare_raw_data <-
     dataColNames <-
       data.frame(colName = c("Index", "Time", currentSpec),
                  colPos = as.numeric(c(1, timeCol, currentCol)))
-    dataColNames <- dataColNames[order(dataColNames$colPos),]
+    dataColNames <- dataColNames[order(dataColNames$colPos), ]
     
     data_list <- map(data_list, \(x, dataColNames) {
       x <- x[, dataColNames$colPos]
@@ -374,15 +409,17 @@ createEditorPlot <- function(data_list, spec) {
   
   # Create the plot
   if (spec %in% c("InwardCurr", "OutwardCurr")) {
-    final_plot <- ggplot(data_list, aes_string(x = x_col, y = y_col)) +
+    final_plot <- ggplot(data_list, aes(x =  .data[[x_col]], y = .data[[y_col]])) +
       geom_line() +
       labs(x = "Time", y = spec)
   } else if (spec == "Both") {
-    plot1 <- ggplot(data_list, aes_string(x = x_col, y = y1_col)) +
+    plot1 <-
+      ggplot(data_list, aes(x =  .data[[x_col]], y = .data[[y_col1]])) +
       geom_line() +
       labs(x = "Time", y = "InwardCurr")
     
-    plot2 <- ggplot(data_list, aes_string(x = x_col, y = y2_col)) +
+    plot2 <-
+      ggplot(data_list, aes(x =  .data[[x_col]], y = .data[[y_col2]])) +
       geom_line() +
       labs(x = "Time", y = "OutwardCurr")
     
@@ -390,5 +427,199 @@ createEditorPlot <- function(data_list, spec) {
     final_plot <- plot2 + plot1 + plot_layout(ncol = 1)
   }
   return(ggplotly(final_plot))
+}
+
+choseSelectedList <- function(data_list, selListNames) {
+  selList <- data_list[names(data_list) %in% selListNames]
+  return(selList)
+}
+
+combineListtoLong <- function(data_list) {
+  return(bind_rows(data_list, .id = "Measurement"))
+}
+
+extractMeasIndex <- function(measNames) {
+  return(word(measNames,-1,  sep = "_"))
+}
+
+createKineticPlot <-
+  function(plotDataFrame,
+           pTitle = "Plot",
+           pTheme = theme_prism(),
+           pThemeOver = theme_few(),
+           style =  "Overlayed")
+  {
+    kinPlot <-
+      ggplot(plotDataFrame, aes(x = Time, y = InwardCurr, color = Measurement)) +
+      geom_line() + pTheme + ggtitle(pTitle)
+    
+    if (style == "Single"){
+      kinPlot <-
+        kinPlot + facet_wrap(
+          ~ Measurement,
+          ncol = 10,
+          labeller = labeller(Measurement = extractMeasIndex)
+        ) + pThemeOver
+    }
+    if (style == "Median") {
+      
+    }
+      
+    
+    kinPlot <- kinPlot + theme(legend.position = "bottom")
+    return(kinPlot)
+  }
+
+pad_dataframe_after<- function(df, max_length) {
+  num_rows <- nrow(df)
+  if (num_rows < max_length) {
+    pad_rows <- max_length - num_rows
+    pad_df <- data.frame(matrix(NA, ncol = ncol(df), nrow = pad_rows))
+    colnames(pad_df) <- colnames(df)
+    padded_df <- rbind(df, pad_df)
+  } else {
+    padded_df <- df
+  }
+  return(padded_df)
+}
+
+
+
+combineListtoWide <- function(data_list) {
+  max_length <- max(map_vec(data_list, nrow))
+  
+  pad_data <- map(data_list, pad_dataframe_after, max_length)
+  
+  combined_data_list <- bind_cols(pad_data, .name_repair = "universal_quiet")
+  
+  names_list <- rep(names(data_list), each = 3)
+  names_df  <- colnames(data_list[[1]])
+  namesComb <- paste0(names_list,".",names_df)
+  colnames(combined_data_list) <- namesComb
+  
+  return(combined_data_list)
+}
+
+normalize_data <- function(data_list, columnSpec) {
+  # Find the column name based on the column specification
+  if (columnSpec == "Inward") {
+    column_name <- "InwardCurr"
+  } else if (columnSpec == "Outward") {
+    column_name <- "OutwardCurr"
+  } else if (columnSpec == "Both") {
+    column_name <- c("InwardCurr", "OutwardCurr")
+  } else {
+    stop("Invalid column specification!")
+  }
+  
+  # Normalize the specified column(s) within the desired range
+    if (is.character(column_name)) {
+      # For single column specification
+      values <- data_list[[column_name]]
+      max_value <- max(values)
+      min_value <- min(values)
+      if (min_value == max_value) {
+        stop("All values in the column are the same!")
+      }
+      if (columnSpec == "Inward") {
+        data_list[[column_name]] <- 100 * (values - max_value) / (max_value - min_value)
+      } else if (columnSpec == "Outward") {
+        data_list[[column_name]] <- 100 * (values - min_value) / (max_value - min_value)
+      }
+    } else {
+      # For "Both" column specification
+      inward_values <- data_list[[column_name[1]]]
+      outward_values <- data_list[[column_name[2]]]
+      max_inward <- max(inward_values)
+      min_inward <- min(inward_values)
+      max_outward <- max(outward_values)
+      min_outward <- min(outward_values)
+      if (min_inward == max_inward || min_outward == max_outward) {
+        stop("All values in at least one of the columns are the same!")
+      }
+      df[[column_name[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
+      df[[column_name[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
+    }
+  
+  return(data_list)
+}
+
+smooth_data <- function(data, smoothingSpec, columnSpec, ...) {
+  if (columnSpec == "Inward") {
+    column_names <- "InwardCurr"
+  } else if (columnSpec == "Outward") {
+    column_names <- "OutwardCurr"
+  } else if (columnSpec == "Both") {
+    column_names <- c("InwardCurr", "OutwardCurr")
+  } else {
+    stop("Invalid column specification!")
+  }
+  
+  
+  for (col in column_names) {
+    switch(
+      smoothingSpec,
+      smoothingspline = {
+        smoothed_data[[col]] <- smooth.spline(data[["Time"]], data[[col]], ...)$y
+      },
+      GaussianKernel = {
+        smoothed_data[[col]] <- ksmooth(data[["Time"]], data[[col]], "normal", ...)$y
+      },
+      gaussian = {
+        smoothed_data[[col]] <- smth.gaussian(data[[col]], ...)
+      },
+      LOESS = {
+        smoothed_data[[col]] <- loess(data[[col]] ~ data$Time,  ...)$fitted
+      },
+      LOWESS = {
+        smoothed_data[[col]] <- lowess(data[["Time"]], data[[col]], ...)
+      },
+      Fourier = {
+        fourier_filter(data[[col]], ...)
+      },
+      stop("Invalid smoothing specification!")
+    )
+  }
+  
+  return(smoothed_data)
+}
+
+fourier_filter <- function(data, cutoff_frequency = 100) {
+  # Apply Fourier transform
+  fft_data <- fft(data)
+  
+  # Identify the indices of the high-frequency components to be removed
+  num_points <- length(fft_data)
+  high_freq_indices <- seq(from = cutoff_frequency + 1, to = num_points - cutoff_frequency)
+  
+  # Remove the high-frequency components
+  fft_data[high_freq_indices] <- 0
+  
+  # Apply inverse Fourier transform to obtain filtered data
+  filtered_data <- Re(fft(fft_data, inverse = TRUE))
+  
+  return(filtered_data)
+}
+
+increase_resolution <- function(data, increase = 10) {
+
+  
+  x <- data$Index  # Assuming the x-values are stored in a column named 'Index'
+  
+  new_x <- seq(min(x), max(x), length.out = length(x) * increase)  # Generate new x-values with increased resolution
+  new_data <- data.frame(Index = new_x)
+  for (col in names(data)) {
+    if (col != "Index") {
+      y <- data[[col]]  # Select the column to interpolate
+      
+      interp <- approx(x, y, xout = new_x)  # Interpolate y-values at new x-values
+      
+      new_data[col] <- interp$y  # Store the interpolated column in the new dataframe
+    }
+  }
+  
+  new_data$Index <- new_x  # Add the new x-values column to the new dataframe
+  
+  return(new_data)
 }
 ######

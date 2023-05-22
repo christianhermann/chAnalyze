@@ -63,6 +63,7 @@ sidebar <- dashboardSidebar(
 
 ##### Body#####
 body <- dashboardBody(
+  
   useSweetAlert(),
   tabItems(
     tabItem(
@@ -129,7 +130,7 @@ body <- dashboardBody(
                 choices = c(),
                 options = list(create = T)
               ),
-      
+              
               # Add OK/Cancel buttons to the modal dialog
               footer = tagList(
                 modalButton("Cancel"),
@@ -141,22 +142,22 @@ body <- dashboardBody(
     ),
     tabItem(
       "DataView",
-        solidHeaderBoxes$Blue(
-          title = "Select Measurement",
-          width = 12,
-          fluidRow(
-            column(
-              width = 3,
-          pickerInput(
-            inputId = "pickerSeries",
-            label = "Series",
-            choices = "")),
+      solidHeaderBoxes$Blue(
+        title = "Select Measurement",
+        width = 12,
+        fluidRow(
           column(
             width = 3,
-          pickerInput(
-            inputId = "pickerType",
-            label = "Type",
-            choices = "")),
+            pickerInput(
+              inputId = "pickerSeries",
+              label = "Series",
+              choices = "")),
+          column(
+            width = 3,
+            pickerInput(
+              inputId = "pickerType",
+              label = "Type",
+              choices = "")),
           column(
             width = 3,
             pickerInput(
@@ -167,8 +168,8 @@ body <- dashboardBody(
             width = 1,
             div(align = "center",style="padding-top: 25px;width:100%",
                 actionButton(
-            inputId = "saveEditorButton",
-            label = "Save"
+                  inputId = "saveEditorButton",
+                  label = "Save"
                 )))
         )),
       fluidRow(
@@ -183,7 +184,41 @@ body <- dashboardBody(
       )
       
     ),
-    
+    tabItem("ViewCalculation",
+            fluidRow(
+              column(
+                width = 4,
+                solidHeaderBoxes$Blue()
+              ),
+              column(
+                width = 4,
+                solidHeaderBoxes$Blue()
+              ),
+              column(
+                width = 4,
+                solidHeaderBoxes$Blue(
+                  width = 12,
+                  
+                  withLoader(
+                    textOutput("outPutCalc"),
+                    type = "image",
+                    loader = "LoadingChannel.gif"
+                  )
+                )
+              )
+            ),
+            fluidRow(
+              column(
+                width = 4,
+                actionBttn(
+                  inputId = "calculateKineticsButton",
+                  label = "Calculate!",
+                  style = "jelly", 
+                  color = "primary"
+                )
+              )
+            )
+    ),
     tabItem("KineticsView",
             fluidPage(
               dropdownButton(
@@ -201,7 +236,7 @@ body <- dashboardBody(
                   inputId = "curSpecKineticsView",
                   label = "Label",
                   choiceNames = c("Inward", 
-                              "Outward"),
+                                  "Outward"),
                   choiceValues = c("InwardCurr", "OutwardCurr"),
                   selected = "OutwardCurr",
                   disabled = TRUE,
@@ -212,7 +247,22 @@ body <- dashboardBody(
                     no = tags$i(class = "fa fa-circle-o", 
                                 style = "color: steelblue"))
                 ),
-
+                radioGroupButtons(
+                  inputId = "curKineticsStyle",
+                  label = "Style",
+                  choiceNames = c("Overlayed", 
+                                  "Single",
+                                  "Median"),
+                  choiceValues = c("Overlayed", "Single", "Median"),
+                  selected = "Overlayed",
+                  individual = TRUE,
+                  checkIcon = list(
+                    yes = tags$i(class = "fa fa-circle", 
+                                 style = "color: steelblue"),
+                    no = tags$i(class = "fa fa-circle-o", 
+                                style = "color: steelblue"))
+                ),
+                
                 checkboxGroupButtons(
                   inputId = "measurementPickerKineticsView",
                   label = "choose Measurements",
@@ -224,14 +274,14 @@ body <- dashboardBody(
                                 style = "color: steelblue")),
                   direction = "vertical"
                 ),
-
+                
                 icon = icon("gear"),
                 
                 tooltip = tooltipOptions(title = "Click to see inputs !")
               ),
               plotOutput("kineticsViewPlot")
             )
-            ),
+    ),
     
     tabItem(
       "SettingsDataImport",
@@ -253,40 +303,184 @@ body <- dashboardBody(
         solidHeaderBoxes$Blue(
           title = "Column specifications",
           width = 4,
-            fluidRow(
-              column(6, 
-                pickerInput(
-                  inputId = "InputImportCurrentSpec",
-                  label = "Current", 
-                  choices = c("Inward", "Outward", "Both"),
-                  selected = "Inward"
-                ),
-                selectizeInput(
-                  inputId = "InputImportCurrentCols",
-                  label = "Columns", 
-                  multiple = TRUE,
-                  choices = c(1,2,3,4,5),
-                  selected = 3,
-                  options = list(create = T)
-                )),
-              column(6,
-                selectizeInput(
-                  inputId = "InputImportTimeCol",
-                  label = "Column Time", 
-                  multiple = FALSE,
-                  choices = c(1,2,3,4,5),
-                  selected = 2,
-                  options = list(create = T)
-                
-                )
-
-              )
+          fluidRow(
+            column(6, 
+                   pickerInput(
+                     inputId = "InputImportCurrentSpec",
+                     label = "Current", 
+                     choices = c("Inward", "Outward", "Both"),
+                     selected = "Inward"
+                   ),
+                   selectizeInput(
+                     inputId = "InputImportCurrentCols",
+                     label = "Columns", 
+                     multiple = TRUE,
+                     choices = c(1,2,3,4,5),
+                     selected = 3,
+                     options = list(create = T)
+                   )),
+            column(6,
+                   selectizeInput(
+                     inputId = "InputImportTimeCol",
+                     label = "Column Time", 
+                     multiple = FALSE,
+                     choices = c(1,2,3,4,5),
+                     selected = 2,
+                     options = list(create = T)
+                     
+                   )
+                   
+            )
           )
           
         )
       )
+    ),
+    tabItem(
+      "SettingsDataManipulation",
+      fluidRow(
+        column(
+          width = 2,
+          solidHeaderBoxes$Blue(
+            title = "Smoothing Algorithm",
+            width = 12,
+            pickerInput("inputAlgorithmSmoothing", label = "Smoothing Algorithm",
+                        choices = c("SmoothingSpline",
+                                    "Gaussian",
+                                    "GaussianKernel",
+                                    "LOESS",
+                                    "LOWESS",
+                                    "Fourier"))
+          ),
+          solidHeaderBoxes$Blue(
+            title = "Upsampling",
+            width = 12,
+            numericInput(
+              inputId = "resolutionUpsampling",
+              label = "spar",
+              value = 10,
+              min = 1,
+              max = 5000
+            )
+          )
+        ),
+        column(
+          width = 10,
+          solidHeaderBoxes$Blue(
+            title = "Smoothing Options",
+            width = 12,
+            fluidRow(
+              column(2,
+                     h4(style="text-align: center;",
+                        "Smoothing Spline"),
+                     numericInput(
+                       inputId = "smoothingSplineSpar",
+                       label = "spar",
+                       value = 0.5,
+                       min = 0,
+                       max = 1
+                     )
+              ),
+              column(2,
+                     style = "border-right: 1px solid black;border-left: 1px solid black",
+                     h4(style="text-align: center;",
+                        "Gaussian"),
+                     numericInput(
+                       inputId = "gaussianWindow",
+                       label = "window",
+                       value = 0.01,
+                       min = 0.0001,
+                       max = 1
+                     ),
+                     numericInput(
+                       inputId = "GaussianAlpha",
+                       label = "alpha",
+                       value = 1,
+                       min = 1,
+                       max = 1000
+                     )
+              ),
+              column(2,
+                     h4(style="text-align: center;",
+                        "Gaussian Kernel"),
+                     numericInput(
+                       inputId = "GaussianKernelBandwith",
+                       label = "bandwith",
+                       value = 1,
+                       min = 1,
+                       max = 1000
+                     )
+              ),
+              column(2,
+                     style = "border-right: 1px solid black;border-left: 1px solid black",
+                     h4(style="text-align: center;",
+                        "LOESS"),
+                     numericInput(
+                       inputId = "loessSpan",
+                       label = "span",
+                       value = 0.05,
+                       min = 0.001,
+                       max = 1
+                     ),
+                     numericInput(
+                       inputId = "loessDegree",
+                       label = "degree",
+                       value = 1,
+                       min = 0,
+                       max = 2
+                     )
+              ),
+              column(2,
+                     style = "border-right: 1px solid black;",
+                     h4(style="text-align: center;",
+                        "LOWESS"),
+                     numericInput(
+                       inputId = "lowessF",
+                       label = "f",
+                       value = 0.01,
+                       min = 0.001,
+                       max = 1
+                     ),
+                     numericInput(
+                       inputId = "lowessIter",
+                       label = "iter",
+                       value = 5,
+                       min = 1,
+                       max = 20
+                     )
+              ),
+              column(2,
+                     h4(style="text-align: center;",
+                        "Fourier"),
+                     numericInput(
+                       inputId = "FouriercutoffFrequency",
+                       label = "Cutoff Frequency",
+                       value = 95,
+                       min = 1,
+                       max = 10000
+                     )
+              )
+            )
+          )
+        )),
+      fluidRow(
+        column(
+          width = 4,
+          solidHeaderBoxes$Blue(
+            title = "Kinetic Stacking",
+            width = 12,
+            tags$div(title="Set the value of the kinetic at which they get stacked.",
+                     numericInput("inputStackPoint", label = "Stackpoint", value = 10, min = 0, max = 100)),
+            tags$div(title="Set the value of the time at the Stackpoint.",
+                     numericInput("inputStackTime", label = "Stacktime", value = 1, min = 0)),
+            tags$div(title="Account for the time delay, between the start of an activation and the stack point.",
+                     numericInput("inputTimeUntilStack", label = "Time Until Stacking", value = 0, min = 0, max = 100, step = 0.001))
+          )
+        ),
+      )
     )
   )
+  
 )
 
 

@@ -24,5 +24,12 @@ library(DataEditR)
 library(ggplot2)
 library(patchwork)
 library(plotly)
+library(dplyr)
+library(ggprism)
+library(ggthemes)
+library(smoother)
+
+
 isDataImported <- FALSE
+isCalculated <- FALSE
 dataList <- list()
