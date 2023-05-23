@@ -90,8 +90,8 @@ body <- dashboardBody(
           withLoader(
             textOutput("StatusDataImport"),
             proxy.height = 20,
-            type = "html",
-            loader = "loader7"
+            type = "image",
+            loader = "LoadingChannel.gif"
           )
         ),
         solidHeaderBoxes$Blue(
@@ -187,34 +187,49 @@ body <- dashboardBody(
     tabItem("ViewCalculation",
             fluidRow(
               column(
-                width = 4,
-                solidHeaderBoxes$Blue()
-              ),
-              column(
-                width = 4,
-                solidHeaderBoxes$Blue()
-              ),
-              column(
-                width = 4,
+                width = 6,
                 solidHeaderBoxes$Blue(
                   width = 12,
-                  
+                  fluidRow(
+                    column(
+                      width = 8,
+                      pickerInput(
+                        inputId = "seriesPickerCalculations",
+                        label = "Series",
+                        choices = ""
+                      )
+                    ),
+                    column(
+                      width = 2,
+                      div(
+                        actionButton(
+                        inputId = "calculateSeries",
+                        label = "Calculate"
+                      ), 
+                      style = 'top: 25px;position:relative;')
+                    ),
+                    column(
+                      width = 2,
+                      div(
+                      actionButton(
+                        inputId = "calculateAllSeries",
+                        label = "Calculate All"
+                      ), 
+                      style = 'top: 25px;position:relative;')
+                    )
+                  )
+                )
+              ),
+              column(
+                width = 2,
+                solidHeaderBoxes$Blue(
+                  title = "Status",
+                  width = 12,
                   withLoader(
                     textOutput("outPutCalc"),
                     type = "image",
                     loader = "LoadingChannel.gif"
                   )
-                )
-              )
-            ),
-            fluidRow(
-              column(
-                width = 4,
-                actionBttn(
-                  inputId = "calculateKineticsButton",
-                  label = "Calculate!",
-                  style = "jelly", 
-                  color = "primary"
                 )
               )
             )
@@ -350,7 +365,8 @@ body <- dashboardBody(
                                     "GaussianKernel",
                                     "LOESS",
                                     "LOWESS",
-                                    "Fourier"))
+                                    "Fourier"),
+                        selected = "SmoothingSpline")
           ),
           solidHeaderBoxes$Blue(
             title = "Upsampling",

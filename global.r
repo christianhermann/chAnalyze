@@ -28,7 +28,7 @@ library(dplyr)
 library(ggprism)
 library(ggthemes)
 library(smoother)
-
+library(stringr)
 
 isDataImported <- FALSE
 isCalculated <- FALSE

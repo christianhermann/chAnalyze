@@ -27,11 +27,6 @@ shinyServer(function(input, output, session) {
       })
   }
   })
-  #####
-  ######
-  
-  
-  
   ##### Change Workspace######
   observeEvent(input$ChangeWorkspace, {
     wddir <- choose.dir()
@@ -42,8 +37,6 @@ shinyServer(function(input, output, session) {
       getwd()
     })
   })
-  #####
-  
   ####DataEditor####
   
   data_to_edit <- reactiveVal(data.frame(10, 10))
@@ -181,6 +174,13 @@ shinyServer(function(input, output, session) {
       selected =  names(dataList)[1]
     )
     
+    updatePickerInput(
+      session = session,
+      inputId = "seriesPickerCalculations",
+      choices = names(dataList),
+      selected =  names(dataList)[1]
+    )
+    
     updateCurSpecKineticsView(seriesName)
     
     isolate({
@@ -233,16 +233,75 @@ shinyServer(function(input, output, session) {
     names(data_list) <- file_path_sans_ext(basename(paths))
     return(data_list)
   }
-  #####
+  ####
+  
+  ####Calculations
+  observeEvent(input$calculateSeries, {
+    isCalculated <<- FALSE
+    output$outPutCalc <- renderText({
+    seriesName <- input$seriesPickerCalculations
+    dataSmooth <- calculateSmoothing(seriesName)
+    isCalculated <<- TRUE
+    dataList[[seriesName]][["smoothedData"]] <<- dataSmooth[["data_list"]]
+    dataList[[seriesName]]$settings$smoothingAlgo <<- dataSmooth$smoothingAlgo
+    dataList[[seriesName]]$settings$smoothingParam <<- dataSmooth$smoothingParam
+
+    dataNorm <- calculateNorming(seriesName, "smoothedData")
+    dataList[[seriesName]][["normalizedData"]] <<- dataNorm
+    
+      if (isCalculated == FALSE) {
+        paste0("No calculation have been done!")
+      } else {
+        paste0("Calculations are finished!")
+      }
+    })
+    
+    updatePickerTypeKineticsView(session)
+  })
+  
+  
+  calculateSmoothing <- function(series) {
+    data_list <- dataList[[series]]$preparedData
+    columnSpec <- getSettings(dataList[[series]], "currentSpec")
+    smoothingAlgo <- input$inputAlgorithmSmoothing
+    switch(
+      smoothingAlgo,
+      SmoothingSpline = {
+        parList  <- list(spar = input$smoothingSplineSpar)
+      },
+      GaussianKernel = {
+        parList  <- list(bandwidth = input$GaussianKernelBandwith)
+        },
+      Gaussian = {
+        parList  <- list(window = input$gaussianWindow, alpha = input$GaussianAlpha)
+      },
+      LOESS = {
+        parList  <- list(span = input$loessSpan, degree = input$loessDegree)
+      },
+      LOWESS = {
+        parList  <- list(f = input$lowessF, iter = input$lowessIter)
+      },
+      Fourier = {
+        parList  <- list(cutoff_frequency = input$FouriercutoffFrequency)
+      },
+      stop("Invalid Algorithm!")
+    )
+    data_list <- map(data_list, \(x) do.call(smooth_data, c(list(data = x, smoothingSpec = smoothingAlgo,columnSpec = columnSpec), parList )))
+    return(c(list(data_list = data_list), smoothingAlgo = smoothingAlgo,  smoothingParam  = list(parList)))
+  }
+  
+  calculateNorming <- function(series, data_temp) {
+    data_list <- dataList[[series]][[data_temp]]
+    columnSpec <- getSettings(dataList[[series]], "currentSpec")
+    
+    data_list <- map(data_list, \(x) normalize_data(x, columnSpec))
+    return(data_list)
+  }
   ####View Kinetics####
   ###Observers###
   observeEvent(input$seriesPickerKineticsView, {
-    updateSelectInput(
-      session = session,
-      inputId = "typePickerKineticsView",
-      choices = names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))),
-      selected = "preparedData"
-    )
+    
+    updatePickerTypeKineticsView(session)
     
     updateCurSpecKineticsView(input$seriesPickerKineticsView)
     
@@ -334,6 +393,16 @@ shinyServer(function(input, output, session) {
       )
     }
   }
+  
+  updatePickerTypeKineticsView <- function(session) {
+  updateSelectInput(
+    session = session,
+    inputId = "typePickerKineticsView",
+    choices = names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))),
+    selected =  tail(names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))), n = 1)
+  )
+  }
+  
   ####
   if (!interactive()) {
     session$onSessionEnded(function() {
@@ -343,7 +412,7 @@ shinyServer(function(input, output, session) {
   }
 })
 
-#####Functions
+####Functions####
 
 find_header_row <- function(directory, header_column) {
   i <- 0
@@ -501,35 +570,25 @@ combineListtoWide <- function(data_list) {
 }
 
 normalize_data <- function(data_list, columnSpec) {
-  # Find the column name based on the column specification
-  if (columnSpec == "Inward") {
-    column_name <- "InwardCurr"
-  } else if (columnSpec == "Outward") {
-    column_name <- "OutwardCurr"
-  } else if (columnSpec == "Both") {
-    column_name <- c("InwardCurr", "OutwardCurr")
-  } else {
-    stop("Invalid column specification!")
-  }
-  
+
   # Normalize the specified column(s) within the desired range
-    if (is.character(column_name)) {
+    if (is.character(columnSpec)) {
       # For single column specification
-      values <- data_list[[column_name]]
+      values <- data_list[[columnSpec]]
       max_value <- max(values)
       min_value <- min(values)
       if (min_value == max_value) {
         stop("All values in the column are the same!")
       }
-      if (columnSpec == "Inward") {
-        data_list[[column_name]] <- 100 * (values - max_value) / (max_value - min_value)
-      } else if (columnSpec == "Outward") {
-        data_list[[column_name]] <- 100 * (values - min_value) / (max_value - min_value)
+      if (columnSpec == "InwardCurr") {
+        data_list[[columnSpec]] <- 100 * (values - max_value) / (max_value - min_value)
+      } else if (columnSpec == "OutwardCurr") {
+        data_list[[columnSpec]] <- 100 * (values - min_value) / (max_value - min_value)
       }
     } else {
       # For "Both" column specification
-      inward_values <- data_list[[column_name[1]]]
-      outward_values <- data_list[[column_name[2]]]
+      inward_values <- data_list[[columnSpec[1]]]
+      outward_values <- data_list[[columnSpec[2]]]
       max_inward <- max(inward_values)
       min_inward <- min(inward_values)
       max_outward <- max(outward_values)
@@ -537,45 +596,36 @@ normalize_data <- function(data_list, columnSpec) {
       if (min_inward == max_inward || min_outward == max_outward) {
         stop("All values in at least one of the columns are the same!")
       }
-      df[[column_name[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
-      df[[column_name[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
+      data_list[[columnSpec[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
+      data_list[[columnSpec[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
     }
   
   return(data_list)
 }
 
 smooth_data <- function(data, smoothingSpec, columnSpec, ...) {
-  if (columnSpec == "Inward") {
-    column_names <- "InwardCurr"
-  } else if (columnSpec == "Outward") {
-    column_names <- "OutwardCurr"
-  } else if (columnSpec == "Both") {
-    column_names <- c("InwardCurr", "OutwardCurr")
-  } else {
-    stop("Invalid column specification!")
-  }
-  
-  
-  for (col in column_names) {
+
+  smoothed_data <- data
+  for (col in columnSpec) {
     switch(
       smoothingSpec,
-      smoothingspline = {
+      SmoothingSpline = {
         smoothed_data[[col]] <- smooth.spline(data[["Time"]], data[[col]], ...)$y
       },
       GaussianKernel = {
         smoothed_data[[col]] <- ksmooth(data[["Time"]], data[[col]], "normal", ...)$y
       },
-      gaussian = {
+      Gaussian = {
         smoothed_data[[col]] <- smth.gaussian(data[[col]], ...)
       },
       LOESS = {
         smoothed_data[[col]] <- loess(data[[col]] ~ data$Time,  ...)$fitted
       },
       LOWESS = {
-        smoothed_data[[col]] <- lowess(data[["Time"]], data[[col]], ...)
+        smoothed_data[[col]] <- lowess(data[["Time"]], data[[col]], ...)$y
       },
       Fourier = {
-        fourier_filter(data[[col]], ...)
+        smoothed_data[[col]] <- fourier_filter(data[[col]], ...)
       },
       stop("Invalid smoothing specification!")
     )
@@ -622,4 +672,23 @@ increase_resolution <- function(data, increase = 10) {
   
   return(new_data)
 }
-######
+
+getStackTimePoints <- function(data_frame, stackPoint, columnSpec) {
+  time_points <- data.frame(Index = numeric(), Time = numeric(), Column = character())
+  
+  for (col in columnSpec) {
+    if (col == "InwardCurr") stackPoint <- stackPoint * - 1
+    if (col == "OutwardCurr") stackPoint <- abs(stackPoint)
+    
+      time_series <- data_frame[[col]]
+      # Find indices where the time series crosses the stack point value
+      crossing_indices <- which(diff(sign(time_series - stackPoint)) != 0)
+      
+      # Extract the corresponding time points
+      crossing_indices <- crossing_indices[1]
+      crossing_time_points <- data_frame$Time[crossing_indices]
+      time_points <- rbind(time_points, tibble(crossing_indices, crossing_time_points, col))
+  }
+  return(time_points)
+}
+    
