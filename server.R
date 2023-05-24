@@ -1,7 +1,7 @@
 shinyServer(function(input, output, session) {
   ####Reactives####
   
-  ##### Observe Tabs######
+  #### Observe Tabs######
   observeEvent(input$tabs, {
     ##### Import Export Data######
     if (input$tabs == "DataImportExport") {
@@ -16,18 +16,18 @@ shinyServer(function(input, output, session) {
         }
       })
     }
-      
+    
     if (input$tabs == "ViewCalculation") {
       output$outPutCalc <- renderText({
-      if (isCalculated == FALSE) {
-        paste0("No calculation have been done!")
-      } else {
-        paste0("Calculations are finished!")
-      }
+        if (isCalculated == FALSE) {
+          paste0("No calculation have been done!")
+        } else {
+          paste0("Calculations are finished!")
+        }
       })
-  }
+    }
   })
-  ##### Change Workspace######
+  #### Change Workspace######
   observeEvent(input$ChangeWorkspace, {
     wddir <- choose.dir()
     if (!is.na(wddir))
@@ -235,20 +235,30 @@ shinyServer(function(input, output, session) {
   }
   ####
   
-  ####Calculations
+  ####Calculations####
   observeEvent(input$calculateSeries, {
     isCalculated <<- FALSE
     output$outPutCalc <- renderText({
-    seriesName <- input$seriesPickerCalculations
-    dataSmooth <- calculateSmoothing(seriesName)
-    isCalculated <<- TRUE
-    dataList[[seriesName]][["smoothedData"]] <<- dataSmooth[["data_list"]]
-    dataList[[seriesName]]$settings$smoothingAlgo <<- dataSmooth$smoothingAlgo
-    dataList[[seriesName]]$settings$smoothingParam <<- dataSmooth$smoothingParam
-
-    dataNorm <- calculateNorming(seriesName, "smoothedData")
-    dataList[[seriesName]][["normalizedData"]] <<- dataNorm
-    
+      
+      seriesName <- input$seriesPickerCalculations
+      dataSmooth <- calculateSmoothing(seriesName)
+      isCalculated <<- TRUE
+      dataList[[seriesName]][["smoothedData"]] <<- dataSmooth[["data_list"]]
+      dataList[[seriesName]]$settings$smoothingAlgo <<- dataSmooth$smoothingAlgo
+      dataList[[seriesName]]$settings$smoothingParam <<- dataSmooth$smoothingParam
+      
+      dataNorm <- calculateNorming(seriesName, "smoothedData")
+      dataList[[seriesName]]$settings$normInfo <<- map(dataNorm, \(x) x[[2]])
+      dataList[[seriesName]][["normalizedSmoothedData"]] <<- map(dataNorm, \(x) x[[1]])
+      
+      dataStacking <- calculateStacking(seriesName, "normalizedSmoothedData")
+      dataList[[seriesName]]$settings$stackInfo <<- dataStacking[[2]]
+      dataList[[seriesName]][["normalizedSmoothedStackedData"]] <<- dataStacking[[1]]
+      
+      
+      
+      updatePickerTypeKineticsView(session)
+      
       if (isCalculated == FALSE) {
         paste0("No calculation have been done!")
       } else {
@@ -256,7 +266,6 @@ shinyServer(function(input, output, session) {
       }
     })
     
-    updatePickerTypeKineticsView(session)
   })
   
   
@@ -271,7 +280,7 @@ shinyServer(function(input, output, session) {
       },
       GaussianKernel = {
         parList  <- list(bandwidth = input$GaussianKernelBandwith)
-        },
+      },
       Gaussian = {
         parList  <- list(window = input$gaussianWindow, alpha = input$GaussianAlpha)
       },
@@ -296,6 +305,26 @@ shinyServer(function(input, output, session) {
     
     data_list <- map(data_list, \(x) normalize_data(x, columnSpec))
     return(data_list)
+  }
+  
+  calculateStacking <- function(series, data_temp) {
+    
+    data_list <- dataList[[series]][[data_temp]]
+    upsamplingResu <- input$resolutionUpsampling
+    columnSpec <- getSettings(dataList[[series]], "currentSpec")
+    stackTime <- input$inputStackTime
+    stackPoint <- input$inputStackPoint
+    
+    data_list <- map(data_list, \(x) increase_resolution(x,upsamplingResu))
+    
+    stackPoint_list <- map(data_list, \(x) getStackTimePoints(x, stackPoint, columnSpec))
+    
+    data_list <- map2(data_list, stackPoint_list, \(x, y) moveTimeToStackTime(x, y, stackTime))
+    
+    data_list <- map(data_list, \(x) moveIndexToStackIndex(x, stackTime))
+    
+    return(c(list(data_list = data_list), stackPoint_list = list(stackPoint_list), stackParam = list(stackTime = stackTime, stackPoint = stackPoint, upsamplingResu = upsamplingResu)))
+    
   }
   ####View Kinetics####
   ###Observers###
@@ -333,7 +362,7 @@ shinyServer(function(input, output, session) {
       )
     )
     
-   
+    
   },  ignoreInit = TRUE)
   
   observeEvent(input$measurementPickerKineticsView, {
@@ -395,12 +424,12 @@ shinyServer(function(input, output, session) {
   }
   
   updatePickerTypeKineticsView <- function(session) {
-  updateSelectInput(
-    session = session,
-    inputId = "typePickerKineticsView",
-    choices = names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))),
-    selected =  tail(names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))), n = 1)
-  )
+    updateSelectInput(
+      session = session,
+      inputId = "typePickerKineticsView",
+      choices = names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))),
+      selected =  tail(names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))), n = 1)
+    )
   }
   
   ####
@@ -531,15 +560,33 @@ createKineticPlot <-
         ) + pThemeOver
     }
     if (style == "Median") {
+      kinPlot <-
+        ggplot(plotDataFrame, aes(x = Time, y = InwardCurr, color = Measurement)) +
+        stat_summary(fun.y = "median", geom = "line") + pTheme + ggtitle(pTitle)
       
     }
-      
-    
     kinPlot <- kinPlot + theme(legend.position = "bottom")
     return(kinPlot)
   }
 
-pad_dataframe_after<- function(df, max_length) {
+pad_dataframes <- function(data_list) {
+  min_length <- min(map_dbl(data_list, \(x) min(x$Index)))
+  data_list <- map(data_list, \(x) pad_dataframe_before(x, min_length))
+  max_length <- max(map_dbl(data_list, \(x) length(x$Index)))
+  data_list <- map(data_list, \(x) pad_dataframe_after(x, max_length))
+  return(data_list)
+}
+
+pad_dataframe_before <- function(df, min_length) {
+  pad_rows <- df$Index[1] - min_length
+  if(pad_rows == 0) return(df)
+  pad_df <- data.frame(matrix(NA, ncol = ncol(df), nrow = pad_rows))
+  colnames(pad_df) <- colnames(df)
+  padded_df <- rbind(pad_df, df)
+  return(padded_df)
+}
+
+pad_dataframe_after <- function(df, max_length) {
   num_rows <- nrow(df)
   if (num_rows < max_length) {
     pad_rows <- max_length - num_rows
@@ -551,8 +598,6 @@ pad_dataframe_after<- function(df, max_length) {
   }
   return(padded_df)
 }
-
-
 
 combineListtoWide <- function(data_list) {
   max_length <- max(map_vec(data_list, nrow))
@@ -570,41 +615,52 @@ combineListtoWide <- function(data_list) {
 }
 
 normalize_data <- function(data_list, columnSpec) {
-
-  # Normalize the specified column(s) within the desired range
-    if (is.character(columnSpec)) {
-      # For single column specification
-      values <- data_list[[columnSpec]]
-      max_value <- max(values)
-      min_value <- min(values)
-      if (min_value == max_value) {
-        stop("All values in the column are the same!")
-      }
-      if (columnSpec == "InwardCurr") {
-        data_list[[columnSpec]] <- 100 * (values - max_value) / (max_value - min_value)
-      } else if (columnSpec == "OutwardCurr") {
-        data_list[[columnSpec]] <- 100 * (values - min_value) / (max_value - min_value)
-      }
-    } else {
-      # For "Both" column specification
-      inward_values <- data_list[[columnSpec[1]]]
-      outward_values <- data_list[[columnSpec[2]]]
-      max_inward <- max(inward_values)
-      min_inward <- min(inward_values)
-      max_outward <- max(outward_values)
-      min_outward <- min(outward_values)
-      if (min_inward == max_inward || min_outward == max_outward) {
-        stop("All values in at least one of the columns are the same!")
-      }
-      data_list[[columnSpec[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
-      data_list[[columnSpec[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
-    }
   
-  return(data_list)
+  # Normalize the specified column(s) within the desired range
+  if (is.character(columnSpec)) {
+    # For single column specification
+    values <- data_list[[columnSpec]]
+    max_value <- max(values)
+    min_value <- min(values)
+    max_norm_Index <- which.max(values)
+    min_norm_Index <- which.min(values)
+    
+    normalizeIndices <- list(max_norm_Index = max_norm_Index, min_norm_Index = min_norm_Index)
+    if (min_value == max_value) {
+      stop("All values in the column are the same!")
+    }
+    if (columnSpec == "InwardCurr") {
+      data_list[[columnSpec]] <- 100 * (values - max_value) / (max_value - min_value)
+    } else if (columnSpec == "OutwardCurr") {
+      data_list[[columnSpec]] <- 100 * (values - min_value) / (max_value - min_value)
+    }
+  } else {
+    # For "Both" column specification
+    inward_values <- data_list[[columnSpec[1]]]
+    outward_values <- data_list[[columnSpec[2]]]
+    max_inward <- max(inward_values)
+    min_inward <- min(inward_values)
+    max_outward <- max(outward_values)
+    min_outward <- min(outward_values)
+    max_norm_Inward_Index <- which.max(inward_values)
+    min_norm_Inward_Index <- which.min(inward_values)
+    max_norm_Outward_Index <- which.max(outward_values)
+    min_norm_Outward_Index <- which.min(outward_values)
+    normalizeIndices <- list(max_norm_Inward_Index = max_norm_Inward_Index, min_norm_Inward_Index = min_norm_Inward_Index,
+                             max_norm_Outward_Index = max_norm_Outward_Index, min_norm_Outward_Index = min_norm_Outward_Index)
+    
+    if (min_inward == max_inward || min_outward == max_outward) {
+      stop("All values in at least one of the columns are the same!")
+    }
+    data_list[[columnSpec[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
+    data_list[[columnSpec[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
+  }
+  
+  return(list(data_list = data_list, normalizeIndices = normalizeIndices))
 }
 
 smooth_data <- function(data, smoothingSpec, columnSpec, ...) {
-
+  
   smoothed_data <- data
   for (col in columnSpec) {
     switch(
@@ -652,7 +708,7 @@ fourier_filter <- function(data, cutoff_frequency = 100) {
 }
 
 increase_resolution <- function(data, increase = 10) {
-
+  
   
   x <- data$Index  # Assuming the x-values are stored in a column named 'Index'
   
@@ -680,15 +736,24 @@ getStackTimePoints <- function(data_frame, stackPoint, columnSpec) {
     if (col == "InwardCurr") stackPoint <- stackPoint * - 1
     if (col == "OutwardCurr") stackPoint <- abs(stackPoint)
     
-      time_series <- data_frame[[col]]
-      # Find indices where the time series crosses the stack point value
-      crossing_indices <- which(diff(sign(time_series - stackPoint)) != 0)
-      
-      # Extract the corresponding time points
-      crossing_indices <- crossing_indices[1]
-      crossing_time_points <- data_frame$Time[crossing_indices]
-      time_points <- rbind(time_points, tibble(crossing_indices, crossing_time_points, col))
+    time_series <- data_frame[[col]]
+    # Find indices where the time series crosses the stack point value
+    crossing_indices <- which(diff(sign(time_series - stackPoint)) != 0)
+    
+    # Extract the corresponding time points
+    crossing_indices <- crossing_indices[1]
+    crossing_time_points <- data_frame$Time[crossing_indices]
+    time_points <- rbind(time_points, tibble(crossing_indices, crossing_time_points, col))
   }
   return(time_points)
 }
-    
+
+moveTimeToStackTime <- function(data_frame, stackPoint_frame, stackTime){
+  data_frame$Time <- data_frame$Time - stackPoint_frame$crossing_time_points + stackTime
+    return(data_frame)
+}
+
+moveIndexToStackIndex <- function(data_frame,  stackTime){
+  data_frame$Index <- data_frame$Index - which(data_frame$Time == stackTime)
+  return(data_frame)
+}
