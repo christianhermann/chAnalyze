@@ -373,10 +373,22 @@ body <- dashboardBody(
             width = 12,
             numericInput(
               inputId = "resolutionUpsampling",
-              label = "spar",
+              label = "Factor",
               value = 10,
               min = 1,
               max = 5000
+            ),
+            radioGroupButtons(
+              inputId = "Id071",
+              label = "Upsampling:",
+              choices = c("Only Model", 
+                          "All"),
+              status = "primary",
+              checkIcon = list(
+                yes = icon("ok", 
+                           lib = "glyphicon"),
+                no = icon("remove",
+                          lib = "glyphicon"))
             )
           )
         ),

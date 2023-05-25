@@ -243,18 +243,19 @@ shinyServer(function(input, output, session) {
       seriesName <- input$seriesPickerCalculations
       dataSmooth <- calculateSmoothing(seriesName)
       isCalculated <<- TRUE
+      #Create the smoothed model of the measurements and extract Indizes
       dataList[[seriesName]][["smoothedData"]] <<- dataSmooth[["data_list"]]
       dataList[[seriesName]]$settings$smoothingAlgo <<- dataSmooth$smoothingAlgo
       dataList[[seriesName]]$settings$smoothingParam <<- dataSmooth$smoothingParam
       
-      dataNorm <- calculateNorming(seriesName, "smoothedData")
+      dataNorm <- calculateNormingSmoothed(seriesName, "smoothedData")
       dataList[[seriesName]]$settings$normInfo <<- map(dataNorm, \(x) x[[2]])
       dataList[[seriesName]][["normalizedSmoothedData"]] <<- map(dataNorm, \(x) x[[1]])
       
-      dataStacking <- calculateStacking(seriesName, "normalizedSmoothedData")
+      dataStacking <- calculateStackingSmoothed(seriesName, "normalizedSmoothedData")
       dataList[[seriesName]]$settings$stackInfo <<- dataStacking[[2]]
       dataList[[seriesName]][["normalizedSmoothedStackedData"]] <<- dataStacking[[1]]
-      
+      #Norm and stack the "real" data
       
       
       updatePickerTypeKineticsView(session)
@@ -299,15 +300,16 @@ shinyServer(function(input, output, session) {
     return(c(list(data_list = data_list), smoothingAlgo = smoothingAlgo,  smoothingParam  = list(parList)))
   }
   
-  calculateNorming <- function(series, data_temp) {
+  calculateNormingSmoothed <- function(series, data_temp, normInfo = NULL) {
     data_list <- dataList[[series]][[data_temp]]
     columnSpec <- getSettings(dataList[[series]], "currentSpec")
     
-    data_list <- map(data_list, \(x) normalize_data(x, columnSpec))
+    if(is.null(normInfo)) data_list <- map(data_list, \(x) normalize_data(x, columnSpec))
+    if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info(x, columnSpec, y))
     return(data_list)
   }
   
-  calculateStacking <- function(series, data_temp) {
+  calculateStackingSmoothed <- function(series, data_temp) {
     
     data_list <- dataList[[series]][[data_temp]]
     upsamplingResu <- input$resolutionUpsampling
@@ -655,8 +657,42 @@ normalize_data <- function(data_list, columnSpec) {
     data_list[[columnSpec[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
     data_list[[columnSpec[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
   }
-  
   return(list(data_list = data_list, normalizeIndices = normalizeIndices))
+}
+
+normalize_data_with_Info <- function(data_list, columnSpec, normInfo) {
+  
+  if (is.character(columnSpec)) {
+    # For single column specification
+    values <- data_list[[columnSpec]]
+    max_value <- values[normInfo$max_norm_Index]
+    min_value <- values[normInfo$min_norm_Index]
+
+    normalizeIndices <- list(max_norm_Index = max_norm_Index, min_norm_Index = min_norm_Index)
+    if (min_value == max_value) {
+      stop("All values in the column are the same!")
+    }
+    if (columnSpec == "InwardCurr") {
+      data_list[[columnSpec]] <- 100 * (values - max_value) / (max_value - min_value)
+    } else if (columnSpec == "OutwardCurr") {
+      data_list[[columnSpec]] <- 100 * (values - min_value) / (max_value - min_value)
+    }
+  } else {
+    # For "Both" column specification
+    inward_values <- data_list[[columnSpec[1]]]
+    outward_values <- data_list[[columnSpec[2]]]
+    max_inward <- inward_values[normInfo$max_norm_Inward_Index]
+    min_inward <- inward_values[normInfo$min_norm_Inward_Index]
+    max_outward <- outward_values[normInfo$max_norm_Outward_Index]
+    min_outward <- outward_values[normInfo$min_norm_Outward_Index]
+    
+    if (min_inward == max_inward || min_outward == max_outward) {
+      stop("All values in at least one of the columns are the same!")
+    }
+    data_list[[columnSpec[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
+    data_list[[columnSpec[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
+  }
+  return(list(data_list = data_list))
 }
 
 smooth_data <- function(data, smoothingSpec, columnSpec, ...) {
