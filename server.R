@@ -248,7 +248,7 @@ shinyServer(function(input, output, session) {
       dataList[[seriesName]]$settings$smoothingAlgo <<- dataSmooth$smoothingAlgo
       dataList[[seriesName]]$settings$smoothingParam <<- dataSmooth$smoothingParam
       
-      dataNorm <- calculateNormingSmoothed(seriesName, "smoothedData")
+      dataNorm <- calculateNorming(seriesName, "smoothedData")
       dataList[[seriesName]]$settings$normInfo <<- map(dataNorm, \(x) x[[2]])
       dataList[[seriesName]][["normalizedSmoothedData"]] <<- map(dataNorm, \(x) x[[1]])
       
@@ -256,7 +256,8 @@ shinyServer(function(input, output, session) {
       dataList[[seriesName]]$settings$stackInfo <<- dataStacking[[2]]
       dataList[[seriesName]][["normalizedSmoothedStackedData"]] <<- dataStacking[[1]]
       #Norm and stack the "real" data
-      
+      dataNorm <- calculateNorming(seriesName, "preparedData", getSettings(dataList[[seriesName]], "normInfo"))
+      dataList[[seriesName]][["normalizedData"]] <<- dataNorm
       
       updatePickerTypeKineticsView(session)
       
@@ -300,7 +301,7 @@ shinyServer(function(input, output, session) {
     return(c(list(data_list = data_list), smoothingAlgo = smoothingAlgo,  smoothingParam  = list(parList)))
   }
   
-  calculateNormingSmoothed <- function(series, data_temp, normInfo = NULL) {
+  calculateNorming <- function(series, data_temp, normInfo = NULL) {
     data_list <- dataList[[series]][[data_temp]]
     columnSpec <- getSettings(dataList[[series]], "currentSpec")
     
@@ -622,40 +623,66 @@ normalize_data <- function(data_list, columnSpec) {
   if (is.character(columnSpec)) {
     # For single column specification
     values <- data_list[[columnSpec]]
+    if (columnSpec == "InwardCurr") {values <- values * -1}
     max_value <- max(values)
-    min_value <- min(values)
     max_norm_Index <- which.max(values)
-    min_norm_Index <- which.min(values)
+    min_valueAkt <- min(values[1:max_norm_Index])
+    min_valueInakt <- min(values[max_norm_Index:length(values)])
+    min_norm_Akt_Index <- which.min(values[1:max_norm_Index])
+    min_norm_Inakt_Index <- which.min(values[max_norm_Index:length(values)])
     
-    normalizeIndices <- list(max_norm_Index = max_norm_Index, min_norm_Index = min_norm_Index)
-    if (min_value == max_value) {
+    
+    normalizeIndices <- list(max_norm_Index = max_norm_Index, min_norm_Akt_Index = min_norm_Akt_Index, min_norm_Inakt_Index = min_norm_Inakt_Index)
+    if ((min_valueAkt || min_valueInakt) == max_value) {
       stop("All values in the column are the same!")
     }
     if (columnSpec == "InwardCurr") {
-      data_list[[columnSpec]] <- 100 * (values - max_value) / (max_value - min_value)
+      newVal <-  -100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+      newVal <- c(newVal[-1], -100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      data_list[[columnSpec]] <- newVal
+      
     } else if (columnSpec == "OutwardCurr") {
-      data_list[[columnSpec]] <- 100 * (values - min_value) / (max_value - min_value)
-    }
+      newVal <- -100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+      newVal <- c(newVal[-1], 100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      data_list[[columnSpec]] <- newVal }
   } else {
     # For "Both" column specification
-    inward_values <- data_list[[columnSpec[1]]]
+
+    inward_values <- data_list[[columnSpec[1]]] * - 1
     outward_values <- data_list[[columnSpec[2]]]
-    max_inward <- max(inward_values)
-    min_inward <- min(inward_values)
-    max_outward <- max(outward_values)
-    min_outward <- min(outward_values)
-    max_norm_Inward_Index <- which.max(inward_values)
-    min_norm_Inward_Index <- which.min(inward_values)
-    max_norm_Outward_Index <- which.max(outward_values)
-    min_norm_Outward_Index <- which.min(outward_values)
-    normalizeIndices <- list(max_norm_Inward_Index = max_norm_Inward_Index, min_norm_Inward_Index = min_norm_Inward_Index,
-                             max_norm_Outward_Index = max_norm_Outward_Index, min_norm_Outward_Index = min_norm_Outward_Index)
     
-    if (min_inward == max_inward || min_outward == max_outward) {
-      stop("All values in at least one of the columns are the same!")
-    }
-    data_list[[columnSpec[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
-    data_list[[columnSpec[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
+    inward_max_value <- max(inward_values)
+    inward_max_norm_Index <- which.max(inward_values)
+    inward_min_valueAkt <- min(inward_values[1:inward_max_norm_Index])
+    inward_min_valueInakt <- min(inward_values[inward_max_norm_Index:length(inward_values)])
+    inward_min_norm_Akt_Index <- which.min(inward_values[1:inward_max_norm_Index])
+    inward_min_norm_Inakt_Index <- which.min(inward_values[inward_max_norm_Index:length(inward_values)])
+    
+    inward_newVal <- -100 * (inward_values[1:inward_max_norm_Index] - inward_min_valueAkt) / (inward_max_value - inward_min_valueAkt)
+    inward_newVal <- c(inward_newVal[-1], -100 * (inward_values[inward_max_norm_Index:length(inward_values)] - inward_min_valueInakt) / (inward_max_value - inward_min_valueInakt))
+    
+    outward_max_value <- max(outward_values)
+    outward_max_norm_Index <- which.max(outward_values)
+    outward_min_valueAkt <- min(outward_values[1:outward_max_norm_Index])
+    outward_min_valueInakt <- min(outward_values[outward_max_norm_Index:length(outward_values)])
+    outward_min_norm_Akt_Index <- which.min(outward_values[1:outward_max_norm_Index])
+    outward_min_norm_Inakt_Index <- which.min(outward_values[outward_max_norm_Index:length(outward_values)])
+    
+    outward_newVal <- -100 * (outward_values[1:outward_max_norm_Index] - outward_min_valueAkt) / (outward_max_value - outward_min_valueAkt)
+    outward_newVal <- c(outward_newVal[-1], 100 * (outward_values[outward_max_norm_Index:length(outward_values)] - outward_min_valueInakt) / (outward_max_value - outward_min_valueInakt))
+    
+    data_list[["InwardCurr"]] <- inward_newVal
+    data_list[["OutwardCurr"]] <- outward_newVal
+    
+    normalizeIndices <- list(
+      inward_max_norm_Index = inward_max_norm_Index,
+      inward_min_norm_Akt_Index = inward_min_norm_Akt_Index,
+      inward_min_norm_Inakt_Index = inward_min_norm_Inakt_Index,
+      outward_max_norm_Index = outward_max_norm_Index,
+      outward_min_norm_Akt_Index = outward_min_norm_Akt_Index,
+      outward_min_norm_Inakt_Index = outward_min_norm_Inakt_Index
+    )
+    
   }
   return(list(data_list = data_list, normalizeIndices = normalizeIndices))
 }
@@ -665,34 +692,48 @@ normalize_data_with_Info <- function(data_list, columnSpec, normInfo) {
   if (is.character(columnSpec)) {
     # For single column specification
     values <- data_list[[columnSpec]]
+    if (columnSpec == "InwardCurr") {values <- values * -1}
     max_value <- values[normInfo$max_norm_Index]
-    min_value <- values[normInfo$min_norm_Index]
+    min_valueAkt <- values[normInfo$min_norm_Akt_Index]
+    min_valueInakt <- values[normInfo$min_norm_Inakt_Index]
 
-    normalizeIndices <- list(max_norm_Index = max_norm_Index, min_norm_Index = min_norm_Index)
-    if (min_value == max_value) {
+    
+        if ((min_valueAkt || min_valueInakt) == max_value) {
       stop("All values in the column are the same!")
     }
     if (columnSpec == "InwardCurr") {
-      data_list[[columnSpec]] <- 100 * (values - max_value) / (max_value - min_value)
+      newVal <-  -100 * (values[1:normInfo$max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+      newVal <- c(newVal[-1], -100 * (values[normInfo$max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      data_list[[columnSpec]] <- newVal
+      
     } else if (columnSpec == "OutwardCurr") {
-      data_list[[columnSpec]] <- 100 * (values - min_value) / (max_value - min_value)
-    }
+      newVal <- -100 * (values[1:normInfo$max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+      newVal <- c(newVal[-1], 100 * (values[normInfo$max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      data_list[[columnSpec]] <- newVal }
   } else {
     # For "Both" column specification
-    inward_values <- data_list[[columnSpec[1]]]
-    outward_values <- data_list[[columnSpec[2]]]
-    max_inward <- inward_values[normInfo$max_norm_Inward_Index]
-    min_inward <- inward_values[normInfo$min_norm_Inward_Index]
-    max_outward <- outward_values[normInfo$max_norm_Outward_Index]
-    min_outward <- outward_values[normInfo$min_norm_Outward_Index]
     
-    if (min_inward == max_inward || min_outward == max_outward) {
-      stop("All values in at least one of the columns are the same!")
-    }
-    data_list[[columnSpec[1]]] <- 100 * (inward_values - max_inward) / (max_inward - min_inward)
-    data_list[[columnSpec[2]]] <- 100 * (outward_values - min_outward) / (max_outward - min_outward)
+    inward_values <- data_list[[columnSpec[1]]] * - 1
+    outward_values <- data_list[[columnSpec[2]]]
+    
+    inward_max_value <- inward_values[normInfo$inward_max_norm_Index]
+    inward_min_valueAkt <-inward_values[normInfo$inward_min_norm_Akt_Index]
+    inward_min_valueInakt <-inward_values[normInfo$inward_min_norm_Inakt_Index]
+
+    inward_newVal <- -100 * (inward_values[1:normInfo$inward_max_norm_Index] - inward_min_valueAkt) / (inward_max_value - inward_min_valueAkt)
+    inward_newVal <- c(inward_newVal[-1], -100 * (inward_values[normInfo$inward_max_norm_Index:length(inward_values)] - inward_min_valueInakt) / (inward_max_value - inward_min_valueInakt))
+    
+    outward_max_value <- outward_values[normInfo$outward_max_norm_Index]
+    outward_min_valueAkt <- outward_values[normInfo$outward_min_norm_Akt_Index]
+    outward_min_valueInakt <- outward_values[normInfo$outward_min_norm_Inakt_Index]
+
+    outward_newVal <- -100 * (outward_values[1:normInfo$outward_max_norm_Index] - outward_min_valueAkt) / (outward_max_value - outward_min_valueAkt)
+    outward_newVal <- c(outward_newVal[-1], 100 * (outward_values[normInfo$outward_max_norm_Index:length(outward_values)] - outward_min_valueInakt) / (outward_max_value - outward_min_valueInakt))
+    
+    data_list[["InwardCurr"]] <- inward_newVal
+    data_list[["OutwardCurr"]] <- outward_newVal
   }
-  return(list(data_list = data_list))
+  return(data_list = data_list)
 }
 
 smooth_data <- function(data, smoothingSpec, columnSpec, ...) {
