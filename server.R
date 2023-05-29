@@ -48,7 +48,7 @@ shinyServer(function(input, output, session) {
     updatePickerInput(
       session = session,
       inputId = "pickerType",
-      choices = names(dataListwoSettings(dataList[[input$pickerSeries]])),
+      choices = names(dataListwoSettings(dataListwoMedianData(dataList[[input$pickerSeries]]))),
       selected = "preparedData"
     )
     updatePickerInput(
@@ -137,16 +137,7 @@ shinyServer(function(input, output, session) {
         type = "success"
       )
       isDataImported <- TRUE
-    },
-    error = function(e) {
-      sendSweetAlert(
-        session = session,
-        title = "Error...",
-        HTML(paste0("Data was not imported: <br/> "), e),
-        type = "error"
-      )
-      isDataImported <- FALSE
-    })
+
     if (newSeries == TRUE) {
       dataList[[seriesName]][["rawData"]] <<- newDataList
       dataList[[seriesName]][["preparedData"]] <<- preparedDataList
@@ -182,6 +173,17 @@ shinyServer(function(input, output, session) {
     )
     
     updateCurSpecKineticsView(seriesName)
+    updateMeasurementPickerMedianView(session)
+    },
+    error = function(e) {
+      sendSweetAlert(
+        session = session,
+        title = "Error...",
+        HTML(paste0("Data was not imported: <br/> "), e),
+        type = "error"
+      )
+      isDataImported <- FALSE
+    })
     
     isolate({
       output$StatusDataImport <- renderText({
@@ -263,6 +265,9 @@ shinyServer(function(input, output, session) {
       dataStacking <- calculateStacking(seriesName, "normalizedData", getSettings(dataList[[seriesName]], "stackInfo"), getSettings(dataList[[seriesName]], "stackParam"))
       dataList[[seriesName]][["normalizedStackedData"]] <<- dataStacking
       
+      dataMedian <- calcKineticMedian(dataStacking)
+      dataList[[seriesName]]$settings$selectedMeas <<- names(dataList[[seriesName]]$rawData)
+      dataList[[seriesName]][["medianData"]] <<- dataMedian
       updatePickerTypeKineticsView(session)
       
       if (isCalculated == FALSE) {
@@ -273,7 +278,6 @@ shinyServer(function(input, output, session) {
     })
     
   })
-  
   
   calculateSmoothing <- function(series) {
     data_list <- dataList[[series]]$preparedData
@@ -318,13 +322,15 @@ shinyServer(function(input, output, session) {
     
     data_list <- dataList[[series]][[data_temp]]
     upsamplingResu <- input$resolutionUpsampling
+    downsamplingResu <- input$resolutionDownsampling
+    settingsSampling <- input$settingsSampling
     columnSpec <- getSettings(dataList[[series]], "currentSpec")
     stackTime <- input$inputStackTime
     stackPoint <- input$inputStackPoint
     
     if(!(is.null(stackParam) && is.null(stackInfo))) upsamplingResu <- stackParam$upsamplingResu
     
-    data_list <- map(data_list, \(x) increase_resolution(x,upsamplingResu))
+    if(settingsSampling == "Upsampling" || settingsSampling ==  "Both") data_list <- map(data_list, \(x) increase_resolution(x,upsamplingResu))
     
     if(is.null(stackParam) && is.null(stackInfo)) stackPoint_list <- map(data_list, \(x) getStackTimePoints(x, stackPoint, columnSpec))
     if(!(is.null(stackParam) && is.null(stackInfo))) stackPoint_list <- stackInfo
@@ -333,8 +339,11 @@ shinyServer(function(input, output, session) {
     
     data_list <- map2(data_list, stackPoint_list, \(x, y) moveIndexToStackIndex(x, y))
     
-    if(!(is.null(stackParam) && is.null(stackInfo))) return(data_list)
-    return(c(list(data_list = data_list), stackPoint_list = list(stackPoint_list), list(stackParam = list(stackTime = stackTime, stackPoint = stackPoint, upsamplingResu = upsamplingResu))))
+    if(!(is.null(stackParam) && is.null(stackInfo))) {
+      if(settingsSampling == "Downsampling" || settingsSampling ==  "Both")  map(data_list, \(x) decrease_resolution(x,upsamplingResu))
+      return(data_list)
+    }
+    return(c(list(data_list = data_list), stackPoint_list = list(stackPoint_list), list(stackParam = list(stackTime = stackTime, stackPoint = stackPoint, upsamplingResu = upsamplingResu, downsamplingResu = downsamplingResu, settingsSampling = settingsSampling))))
     
   }
   ####View Kinetics####
@@ -349,7 +358,7 @@ shinyServer(function(input, output, session) {
       session = session,
       inputId = "measurementPickerKineticsView",
       choices = names(dataList[[input$seriesPickerKineticsView]][[input$typePickerKineticsView]]),
-      selected = names(dataList[[input$seriesPickerKineticsView]][[input$typePickerKineticsView]]),
+      selected = dataList[[input$seriesPickerKineticsView]]$settings$selectedMeas,
       checkIcon = list(
         yes = tags$i(class = "fa fa-check-square",
                      style = "color: steelblue"),
@@ -364,7 +373,7 @@ shinyServer(function(input, output, session) {
       session = session,
       inputId = "measurementPickerKineticsView",
       choices = names(dataList[[input$seriesPickerKineticsView]][[input$typePickerKineticsView]]),
-      selected = names(dataList[[input$seriesPickerKineticsView]][[input$typePickerKineticsView]]),
+      selected = dataList[[input$seriesPickerKineticsView]]$settings$selectedMeas,
       checkIcon = list(
         yes = tags$i(class = "fa fa-check-square",
                      style = "color: steelblue"),
@@ -380,14 +389,11 @@ shinyServer(function(input, output, session) {
   },  ignoreInit = TRUE)
   
  render_ggplot("kineticsViewPlot",
-               expr = createKinPlot()
-
-  )
+               expr = createKinPlot())
   
   output$kineticsViewPlotly <- renderPlotly({
     return(ggplotly(createKinPlot()))
-  }
-  )
+  })
   
   # output$downloadKineticPlot <- downloadHandler(
   #   filename <- function() {
@@ -409,14 +415,19 @@ shinyServer(function(input, output, session) {
   createKinPlot <- function() {
     data_list <- choseSelectedList(dataList[[input$seriesPickerKineticsView]][[input$typePickerKineticsView]],
                                    input$measurementPickerKineticsView)
-    combinedList <-
-      combineListtoLong(data_list)
+    dataList[[input$seriesPickerKineticsView]]$settings$selectedMeas <<- input$measurementPickerKineticsView
+    currSpec <- input$curSpecKineticsView
+    style <- input$curKineticsStyle
+    if(style != "Median")     combinedList <- combineListtoLong(data_list)
+    if(style == "Median") {   
+      combinedList  <- calcKineticMedian(data_list)
+      dataList[[input$seriesPickerKineticsView]][["medianData"]] <<- combinedList    }
     kineticPlot <-
-      createKineticPlot(combinedList, style = input$curKineticsStyle,
+      createKineticPlot(combinedList, style =style,
                         pTitle = paste0(input$seriesPickerKineticsView,
-                                        ": ", input$typePickerKineticsView)
-      )
-    
+                                        ": ", input$typePickerKineticsView),
+                                        currSpec = currSpec)
+
     if(all(dim(kineticPlot$data) == c(0,0))) kineticPlot = ggplot()
     return(kineticPlot)
   }
@@ -429,6 +440,18 @@ shinyServer(function(input, output, session) {
       updateRadioGroupButtons(
         session = session,
         inputId = "curSpecKineticsView",
+        selected = curSpec,
+        disabled = TRUE,
+        checkIcon = list(
+          yes = tags$i(class = "fa fa-circle",
+                       style = "color: steelblue"),
+          no = tags$i(class = "fa fa-circle-o",
+                      style = "color: steelblue")
+        )
+      )
+      updateRadioGroupButtons(
+        session = session,
+        inputId = "curSpecMedianView",
         selected = curSpec,
         disabled = TRUE,
         checkIcon = list(
@@ -453,6 +476,18 @@ shinyServer(function(input, output, session) {
                       style = "color: steelblue")
         )
       )
+      updateRadioGroupButtons(
+        session = session,
+        inputId = "curSpecMedianView",
+        selected = curSpec,
+        disabled = FALSE,
+        checkIcon = list(
+          yes = tags$i(class = "fa fa-circle",
+                       style = "color: steelblue"),
+          no = tags$i(class = "fa fa-circle-o",
+                      style = "color: steelblue")
+        )
+      )
     }
   }
   
@@ -460,12 +495,43 @@ shinyServer(function(input, output, session) {
     updateSelectInput(
       session = session,
       inputId = "typePickerKineticsView",
-      choices = names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))),
-      selected =  tail(names(dataListwoRawData(dataListwoSettings(dataList[[input$seriesPickerKineticsView]]))), n = 1)
+      choices = names(dataListwTypes(dataList[[input$seriesPickerKineticsView]])),
+      selected =  tail(names(dataListwTypes(dataList[[input$seriesPickerKineticsView]])), n = 1)
     )
+    
+    
   }
   
   ####
+  ####Median OVerlay Plot####
+  createMedianOverlayPlot <-  function(){
+    currSpec <- input$curSpecKineticsView
+    data_list <- choseSelectedList(dataList,
+                                   input$measurementPickerMedianView)
+    style <- input$curMedianStyle
+    median_list <- map(dataList, \(x) x$medianData)
+    combined_dataframe <- combineListtoLong(median_list)
+    
+    createOverlayPlot(data_list, currSpec = )
+  }
+  
+  updateMeasurementPickerMedianView <- function(session) {
+    
+    updateCheckboxGroupButtons(
+      session = session,
+      inputId = "measurementPickerMedianView",
+      choices = names(dataList),
+      selected = names(dataList),
+      checkIcon = list(
+        yes = tags$i(class = "fa fa-check-square",
+                     style = "color: steelblue"),
+        no = tags$i(class = "fa fa-square-o",
+                    style = "color: steelblue")
+      )
+    )
+  }
+    
+ ####
   if (!interactive()) {
     session$onSessionEnded(function() {
       stopApp()
@@ -492,7 +558,7 @@ expCurrentSpec <- function(currentSpec) {
     currentSpec,
     "Inward" = "InwardCurr",
     "Outward" = "OutwardCurr",
-    "Both" = c("InwardCurr", "OutwardCurr")
+    "Both" = "Both"
   ))
 }
 
@@ -501,6 +567,9 @@ prepare_raw_data <-
            currentSpec,
            timeCol,
            currentCol) {
+    
+    if(currentSpec == "Both") currentSpec <- c("InwardCurr" , "OutwardCurr")
+      
     dataColNames <-
       data.frame(colName = c("Index", "Time", currentSpec),
                  colPos = as.numeric(c(1, timeCol, currentCol)))
@@ -512,14 +581,33 @@ prepare_raw_data <-
       return(x)
     }, dataColNames)
     
+    data_list <- map(data_list, \(x) x[complete.cases(x),])
     return(data_list)
   }
 
-dataListwoSettings <- function(dataList)
-  return(dataList[-which(names(dataList) == "settings")])
+dataListwoSettings <- function(dataList) {
+  if (exists("settings", dataList))
+    return(dataList[-which(names(dataList) == "settings")])
+  return(dataList)
+}
+dataListwoRawData <- function(dataList) {
+  if (exists("rawData", dataList))
+    return(dataList[-which(names(dataList) == "rawData")])
+  return(dataList)
+}
+dataListwoMedianData <- function(dataList) {
+  if (exists("medianData", dataList))
+    return(dataList[-which(names(dataList) == "medianData")])
+  return(dataList)
+}
 
-dataListwoRawData <- function(dataList)
-  return(dataList[-which(names(dataList) == "rawData")])
+dataListwTypes <- function(dataList){
+  dataList %<>% 
+    dataListwoSettings()%>%
+    dataListwoRawData() %>%
+    dataListwoMedianData() %>%
+    return(dataList)
+}
 
 getSettings <- function(dataList, setting)
   return(dataList$settings[[setting]])
@@ -545,12 +633,12 @@ createEditorPlot <- function(data_list, spec) {
       labs(x = "Time", y = spec)
   } else if (spec == "Both") {
     plot1 <-
-      ggplot(data_list, aes(x =  .data[[x_col]], y = .data[[y_col1]])) +
+      ggplot(data_list, aes(x =  .data[[x_col]], y = .data[[y1_col]])) +
       geom_line() +
       labs(x = "Time", y = "InwardCurr")
     
     plot2 <-
-      ggplot(data_list, aes(x =  .data[[x_col]], y = .data[[y_col2]])) +
+      ggplot(data_list, aes(x =  .data[[x_col]], y = .data[[y2_col]])) +
       geom_line() +
       labs(x = "Time", y = "OutwardCurr")
     
@@ -578,10 +666,11 @@ createKineticPlot <-
            pTitle = "Plot",
            pTheme = theme_prism(),
            pThemeOver = theme_few(),
-           style =  "Overlayed")
+           style =  "Overlayed",
+           currSpec = NULL)
   {
     kinPlot <-
-      ggplot(plotDataFrame, aes(x = Time, y = InwardCurr, color = Measurement)) +
+      ggplot(plotDataFrame, aes(x = Time, y = .data[[currSpec]], color = Measurement)) +
       geom_line() + pTheme + ggtitle(pTitle)
     
     if (style == "Single"){
@@ -593,14 +682,48 @@ createKineticPlot <-
         ) + pThemeOver
     }
     if (style == "Median") {
+      if(currSpec == "InwardCurr") {
       kinPlot <-
-        ggplot(plotDataFrame, aes(x = Time, y = InwardCurr, color = Measurement)) +
-        stat_summary(fun.y = "median", geom = "line") + pTheme + ggtitle(pTitle)
-      
+        ggplot(plotDataFrame)   +
+        geom_ribbon(aes(x = Time, ymin = Median + SD, ymax = Median),alpha = 0.3) +
+        geom_line(aes(x = Time, y = Median)) + pTheme + ggtitle(pTitle)
+      }
+      if(currSpec == "OutwardCurr") {
+        kinPlot <-
+          ggplot(plotDataFrame)   +
+          geom_ribbon(aes(x = Time, ymin = Median - SD, ymax = Median),alpha = 0.3) +
+          geom_line(aes(x = Time, y = Median)) + pTheme + ggtitle(pTitle)
+      }
     }
+      
     kinPlot <- kinPlot + theme(legend.position = "right")
     return(kinPlot)
   }
+
+
+createOverlayPlot <- function(plotDataFrame,
+                                pTitle = "Plot",
+                                pTheme = theme_prism(),
+                                pThemeOver = theme_few(),
+                                style =  "Overlayed",
+                                currSpec = NULL) {
+  
+  if(currSpec == "InwardCurr") {
+    overlayPlot <-
+      ggplot(plotDataFrame)   +
+      geom_ribbon(aes(x = Time, ymin = Median + SD, ymax = Median, fill = Measurement),alpha = 0.3) +
+      geom_line(aes(x = Time, y = Median, color = Measurement)) + pTheme + ggtitle(pTitle)
+  }
+  if(currSpec == "OutwardCurr") {
+    overlayPlot <-
+      ggplot(plotDataFrame)   +
+      geom_ribbon(aes(x = Time, ymin = Median - SD, ymax = Median, fill = Measurement),alpha = 0.3) +
+      geom_line(aes(x = Time, y = Median, color = Measurement)) + pTheme + ggtitle(pTitle)
+  }
+  overlayPlot <- overlayPlot + theme(legend.position = "right")
+  
+  return(overlayPlot)
+}
 
 pad_dataframes <- function(data_list) {
   min_length <- min(map_dbl(data_list, \(x) min(x$Index)))
@@ -632,6 +755,17 @@ pad_dataframe_after <- function(df, max_length) {
   return(padded_df)
 }
 
+calcKineticMedian <- function(data_list, currSpec) {
+  data_list %<>% 
+    combineListtoWide() %>%
+    removeUneededColumns()
+  
+  median <- createRowMedian(data_list[,-1])
+  SD <- createRowSD(data_list[,-1])
+  medianDF <- data.frame(Time = data_list$Time, Median = median, SD = SD)
+  return(medianDF)
+}
+
 combineListtoWide <- function(data_list) {
 
   pad_data <- pad_dataframes(data_list)
@@ -656,6 +790,10 @@ removeUneededColumns <- function(data_frame) {
 
 createRowMedian <- function(data_frame) {
   return(rowMedians(as.matrix(data_frame), na.rm = TRUE))
+}
+
+createRowSD <- function(data_frame) {
+  return(rowMads(as.matrix(data_frame), na.rm = TRUE))
 }
 
 normalize_data <- function(data_list, columnSpec) {
@@ -683,7 +821,7 @@ normalize_data <- function(data_list, columnSpec) {
       data_list[[columnSpec]] <- newVal
       
     } else if (columnSpec == "OutwardCurr") {
-      newVal <- -100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+      newVal <- 100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
       newVal <- c(newVal[-1], 100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
       data_list[[columnSpec]] <- newVal }
   } else {

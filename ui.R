@@ -322,7 +322,68 @@ body <- dashboardBody(
             )
             )
     ),
-    
+    tabItem(
+      "KineticsOverlays",
+      fluidPage(
+        dropdownButton(         
+          radioGroupButtons(
+            inputId = "curSpecMedianView",
+            label = "Label",
+            choiceNames = c("Inward", 
+                            "Outward"),
+            choiceValues = c("InwardCurr", "OutwardCurr"),
+            selected = "OutwardCurr",
+            disabled = TRUE,
+            individual = TRUE,
+            checkIcon = list(
+              yes = tags$i(class = "fa fa-circle", 
+                           style = "color: steelblue"),
+              no = tags$i(class = "fa fa-circle-o", 
+                          style = "color: steelblue"))
+          ),
+          radioGroupButtons(
+            inputId = "curMedianStyle",
+            label = "Style",
+            choiceNames = c("Overlayed", 
+                            "Single"),
+            choiceValues = c("Overlayed", "Single"),
+            selected = "Overlayed",
+            individual = TRUE,
+            checkIcon = list(
+              yes = tags$i(class = "fa fa-circle", 
+                           style = "color: steelblue"),
+              no = tags$i(class = "fa fa-circle-o", 
+                          style = "color: steelblue"))
+          ),
+          checkboxGroupButtons(
+          inputId = "measurementPickerMedianView",
+          label = "choose Measurements",
+          choices = "",
+          checkIcon = list(
+            yes = tags$i(class = "fa fa-check-square", 
+                         style = "color: steelblue"),
+            no = tags$i(class = "fa fa-square-o", 
+                        style = "color: steelblue")),
+          direction = "vertical"
+        ),
+          icon = icon("gear"),
+          tooltip = tooltipOptions(title = "Click to see inputs !")
+        ),
+        fluidRow(
+          column(
+            width = 12,
+            
+            ggplot_output("kineticsOverlayPlot", height  = "800px"),
+            actionButton(inputId = "OverlayToPlotly",
+                         label = "Show Interactive Plot")
+          ),
+          bsModal("kineticsOverlayPlotlyModal", "View Overlay", "kineticsOverlayPlot", size = "large",
+                  # Add a switch and a text input to the modal dialog
+                  plotlyOutput("kineticsOverlayPlotly", height = "800px")
+          )
+        )
+    )
+    ),
     tabItem(
       "SettingsDataImport",
       fluidRow(
@@ -392,29 +453,6 @@ body <- dashboardBody(
                                     "LOWESS",
                                     "Fourier"),
                         selected = "SmoothingSpline")
-          ),
-          solidHeaderBoxes$Blue(
-            title = "Upsampling",
-            width = 12,
-            numericInput(
-              inputId = "resolutionUpsampling",
-              label = "Factor",
-              value = 10,
-              min = 1,
-              max = 5000
-            ),
-            radioGroupButtons(
-              inputId = "Id071",
-              label = "Upsampling:",
-              choices = c("Only Model", 
-                          "All"),
-              status = "primary",
-              checkIcon = list(
-                yes = icon("ok", 
-                           lib = "glyphicon"),
-                no = icon("remove",
-                          lib = "glyphicon"))
-            )
           )
         ),
         column(
@@ -518,7 +556,41 @@ body <- dashboardBody(
         )),
       fluidRow(
         column(
-          width = 4,
+          width = 3,
+        solidHeaderBoxes$Blue(
+          title = "Up/Downsampling",
+          width = 12,
+          numericInput(
+            inputId = "resolutionUpsampling",
+            label = "Factor Upsampling",
+            value = 10,
+            min = 1,
+            max = 5000
+          ),
+          numericInput(
+            inputId = "resolutionDownsampling",
+            label = "Factor Downsampling",
+            value = 10,
+            min = 1,
+            max = 5000
+          ),
+          radioGroupButtons(
+            inputId = "settingsSampling",
+            label = "Type:",
+            choices = c("Upsampling", 
+                        "Downsampling",
+                        "Both"),
+            status = "primary",
+            checkIcon = list(
+              yes = icon("ok", 
+                         lib = "glyphicon"),
+              no = icon("remove",
+                        lib = "glyphicon"))
+          )
+        )
+        ),
+        column(
+          width = 3,
           solidHeaderBoxes$Blue(
             title = "Kinetic Stacking",
             width = 12,
