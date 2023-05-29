@@ -252,12 +252,16 @@ shinyServer(function(input, output, session) {
       dataList[[seriesName]]$settings$normInfo <<- map(dataNorm, \(x) x[[2]])
       dataList[[seriesName]][["normalizedSmoothedData"]] <<- map(dataNorm, \(x) x[[1]])
       
-      dataStacking <- calculateStackingSmoothed(seriesName, "normalizedSmoothedData")
+      dataStacking <- calculateStacking(seriesName, "normalizedSmoothedData")
+      dataList[[seriesName]]$settings$stackParam <<- dataStacking[[3]]
       dataList[[seriesName]]$settings$stackInfo <<- dataStacking[[2]]
       dataList[[seriesName]][["normalizedSmoothedStackedData"]] <<- dataStacking[[1]]
       #Norm and stack the "real" data
       dataNorm <- calculateNorming(seriesName, "preparedData", getSettings(dataList[[seriesName]], "normInfo"))
       dataList[[seriesName]][["normalizedData"]] <<- dataNorm
+      
+      dataStacking <- calculateStacking(seriesName, "normalizedData", getSettings(dataList[[seriesName]], "stackInfo"), getSettings(dataList[[seriesName]], "stackParam"))
+      dataList[[seriesName]][["normalizedStackedData"]] <<- dataStacking
       
       updatePickerTypeKineticsView(session)
       
@@ -310,7 +314,7 @@ shinyServer(function(input, output, session) {
     return(data_list)
   }
   
-  calculateStackingSmoothed <- function(series, data_temp) {
+  calculateStacking <- function(series, data_temp, stackInfo = NULL, stackParam = NULL) {
     
     data_list <- dataList[[series]][[data_temp]]
     upsamplingResu <- input$resolutionUpsampling
@@ -318,15 +322,19 @@ shinyServer(function(input, output, session) {
     stackTime <- input$inputStackTime
     stackPoint <- input$inputStackPoint
     
+    if(!(is.null(stackParam) && is.null(stackInfo))) upsamplingResu <- stackParam$upsamplingResu
+    
     data_list <- map(data_list, \(x) increase_resolution(x,upsamplingResu))
     
-    stackPoint_list <- map(data_list, \(x) getStackTimePoints(x, stackPoint, columnSpec))
+    if(is.null(stackParam) && is.null(stackInfo)) stackPoint_list <- map(data_list, \(x) getStackTimePoints(x, stackPoint, columnSpec))
+    if(!(is.null(stackParam) && is.null(stackInfo))) stackPoint_list <- stackInfo
     
     data_list <- map2(data_list, stackPoint_list, \(x, y) moveTimeToStackTime(x, y, stackTime))
     
-    data_list <- map(data_list, \(x) moveIndexToStackIndex(x, stackTime))
+    data_list <- map2(data_list, stackPoint_list, \(x, y) moveIndexToStackIndex(x, y))
     
-    return(c(list(data_list = data_list), stackPoint_list = list(stackPoint_list), stackParam = list(stackTime = stackTime, stackPoint = stackPoint, upsamplingResu = upsamplingResu)))
+    if(!(is.null(stackParam) && is.null(stackInfo))) return(data_list)
+    return(c(list(data_list = data_list), stackPoint_list = list(stackPoint_list), list(stackParam = list(stackTime = stackTime, stackPoint = stackPoint, upsamplingResu = upsamplingResu))))
     
   }
   ####View Kinetics####
@@ -371,9 +379,31 @@ shinyServer(function(input, output, session) {
   observeEvent(input$measurementPickerKineticsView, {
   },  ignoreInit = TRUE)
   
-  output$kineticsViewPlot <- renderPlot({
-    plot(createKinPlot())
-  })
+ render_ggplot("kineticsViewPlot",
+               expr = createKinPlot()
+
+  )
+  
+  output$kineticsViewPlotly <- renderPlotly({
+    return(ggplotly(createKinPlot()))
+  }
+  )
+  
+  # output$downloadKineticPlot <- downloadHandler(
+  #   filename <- function() {
+  #     paste('myKinetic', 'png', sep = ".")
+  #   },
+  #   content <- function(file) {
+  #     png(file,
+  #         width = input$shiny_width,
+  #         height = input$shiny_height)
+  # 
+  #     plot <- createKinPlot()
+  #     print(plot)
+  #     dev.off()
+  #   },
+  #   contentType = "image/png"
+  # )
   ###
   ###Kinetic Plot###
   createKinPlot <- function() {
@@ -568,7 +598,7 @@ createKineticPlot <-
         stat_summary(fun.y = "median", geom = "line") + pTheme + ggtitle(pTitle)
       
     }
-    kinPlot <- kinPlot + theme(legend.position = "bottom")
+    kinPlot <- kinPlot + theme(legend.position = "right")
     return(kinPlot)
   }
 
@@ -603,9 +633,8 @@ pad_dataframe_after <- function(df, max_length) {
 }
 
 combineListtoWide <- function(data_list) {
-  max_length <- max(map_vec(data_list, nrow))
-  
-  pad_data <- map(data_list, pad_dataframe_after, max_length)
+
+  pad_data <- pad_dataframes(data_list)
   
   combined_data_list <- bind_cols(pad_data, .name_repair = "universal_quiet")
   
@@ -615,6 +644,18 @@ combineListtoWide <- function(data_list) {
   colnames(combined_data_list) <- namesComb
   
   return(combined_data_list)
+}
+
+removeUneededColumns <- function(data_frame) {
+  Time <- createRowMedian(data_frame[,grep("Time", colnames(data_frame))])
+  data_frame <- data_frame[,-grep("Time", colnames(data_frame))]
+  data_frame <- data_frame[,-grep("Index", colnames(data_frame))]
+  data_frame <- cbind(Time, data_frame)
+  return(data_frame)
+}
+
+createRowMedian <- function(data_frame) {
+  return(rowMedians(as.matrix(data_frame), na.rm = TRUE))
 }
 
 normalize_data <- function(data_list, columnSpec) {
@@ -629,7 +670,7 @@ normalize_data <- function(data_list, columnSpec) {
     min_valueAkt <- min(values[1:max_norm_Index])
     min_valueInakt <- min(values[max_norm_Index:length(values)])
     min_norm_Akt_Index <- which.min(values[1:max_norm_Index])
-    min_norm_Inakt_Index <- which.min(values[max_norm_Index:length(values)])
+    min_norm_Inakt_Index <- max_norm_Index + which.min(values[max_norm_Index:length(values)])
     
     
     normalizeIndices <- list(max_norm_Index = max_norm_Index, min_norm_Akt_Index = min_norm_Akt_Index, min_norm_Inakt_Index = min_norm_Inakt_Index)
@@ -789,8 +830,8 @@ increase_resolution <- function(data, increase = 10) {
   
   x <- data$Index  # Assuming the x-values are stored in a column named 'Index'
   
-  new_x <- seq(min(x), max(x), length.out = length(x) * increase)  # Generate new x-values with increased resolution
-  new_data <- data.frame(Index = new_x)
+  new_x <- seq(min(x), max(x), length.out = length(x) * increase)# Generate new x-values with increased resolution
+  new_data <- data.frame(Index = new_x) 
   for (col in names(data)) {
     if (col != "Index") {
       y <- data[[col]]  # Select the column to interpolate
@@ -801,7 +842,30 @@ increase_resolution <- function(data, increase = 10) {
     }
   }
   
+  new_x <- seq(min(x), min(x) - 1+length(x) * increase)# Generate new x-values with increased resolution
+  new_x <- new_x - min(new_x) + min(x)
+  
   new_data$Index <- new_x  # Add the new x-values column to the new dataframe
+  
+  return(new_data)
+}
+
+decrease_resolution <- function(data, decrease = 10) {
+  x <- data$Index  # Assuming the x-values are stored in a column named 'Index'
+  
+  new_x <- x[seq(1, length(x), by = decrease)]  # Select every nth x-value
+  
+  new_data <- data.frame(Index = new_x)
+  
+  for (col in names(data)) {
+    if (col != "Index") {
+      y <- data[[col]]  # Select the column to downsample
+      
+      downsampled <- y[seq(1, length(y), by = decrease)]  # Select every nth y-value
+      
+      new_data[col] <- downsampled  # Store the downsampled column in the new dataframe
+    }
+  }
   
   return(new_data)
 }
@@ -815,11 +879,11 @@ getStackTimePoints <- function(data_frame, stackPoint, columnSpec) {
     
     time_series <- data_frame[[col]]
     # Find indices where the time series crosses the stack point value
-    crossing_indices <- which(diff(sign(time_series - stackPoint)) != 0)
+    crossing_indices <-data_frame$Index[which(diff(sign(time_series - stackPoint)) != 0)]
     
     # Extract the corresponding time points
     crossing_indices <- crossing_indices[1]
-    crossing_time_points <- data_frame$Time[crossing_indices]
+    crossing_time_points <- data_frame$Time[which(data_frame$Index == crossing_indices)]
     time_points <- rbind(time_points, tibble(crossing_indices, crossing_time_points, col))
   }
   return(time_points)
@@ -830,7 +894,7 @@ moveTimeToStackTime <- function(data_frame, stackPoint_frame, stackTime){
     return(data_frame)
 }
 
-moveIndexToStackIndex <- function(data_frame,  stackTime){
-  data_frame$Index <- data_frame$Index - which(data_frame$Time == stackTime)
+moveIndexToStackIndex <- function(data_frame,  stackInfo){
+  data_frame$Index <- data_frame$Index - stackInfo$crossing_indices
   return(data_frame)
 }

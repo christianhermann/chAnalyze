@@ -63,6 +63,18 @@ sidebar <- dashboardSidebar(
 
 ##### Body#####
 body <- dashboardBody(
+#   tags$script("$(document).on('shiny:connected', function(event) {
+# var myWidth = $(window).width();
+# Shiny.onInputChange('shiny_width',myWidth)
+# 
+# });"),
+#   
+#   tags$script("$(document).on('shiny:connected', function(event) {
+# var myHeight = $(window).height();
+# Shiny.onInputChange('shiny_height',myHeight)
+# 
+# });"),
+  
   
   useSweetAlert(),
   tabItems(
@@ -294,7 +306,20 @@ body <- dashboardBody(
                 
                 tooltip = tooltipOptions(title = "Click to see inputs !")
               ),
-              plotOutput("kineticsViewPlot")
+              fluidRow(
+                column(
+                  width = 12,
+
+               ggplot_output("kineticsViewPlot", height  = "800px"),
+               # downloadButton("downloadKineticPlot", "Download the plot"),
+               actionButton(inputId = "kineticToPlotly",
+                            label = "Show Interactive Plot")
+                ),
+               bsModal("kineticsViewPlotlyModal", "View Kinetic", "kineticToPlotly", size = "large",
+                       # Add a switch and a text input to the modal dialog
+              plotlyOutput("kineticsViewPlotly", height = "800px")
+              )
+            )
             )
     ),
     

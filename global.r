@@ -29,6 +29,8 @@ library(ggprism)
 library(ggthemes)
 library(smoother)
 library(stringr)
+library(matrixStats)
+
 
 isDataImported <- FALSE
 isCalculated <- FALSE
