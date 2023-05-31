@@ -30,8 +30,17 @@ library(ggthemes)
 library(smoother)
 library(stringr)
 library(matrixStats)
+library(fontawesome)
 
 
 isDataImported <- FALSE
 isCalculated <- FALSE
 dataList <- list()
+
+colorPalette <- c("#000000", "#0072B2", "#009E73",
+                  "#D55E00", "#56B4E9", "#F0E442",
+                  "#CC79A7", "#999999", "#E69F00")
+colorChoices <-  colorPalette
+colorSelected <-  colorPalette
+selectedColors <- c()
+                     

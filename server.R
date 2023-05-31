@@ -508,11 +508,13 @@ shinyServer(function(input, output, session) {
     currSpec <- input$curSpecKineticsView
     data_list <- choseSelectedList(dataList,
                                    input$measurementPickerMedianView)
+    colorList <- colorSelected
+    if(input$overlayPlot_switchColors == TRUE) colorList <- input$overlayPlot_colorsText
     style <- input$curMedianStyle
     median_list <- map(dataList, \(x) x$medianData)
     combined_dataframe <- combineListtoLong(median_list)
     
-    createOverlayPlot(data_list, currSpec = )
+    createOverlayPlot(data_list, currSpec = currSpec, colorList = colorList)
   }
   
   updateMeasurementPickerMedianView <- function(session) {
@@ -530,7 +532,27 @@ shinyServer(function(input, output, session) {
       )
     )
   }
-    
+  
+  ###Colors###
+  observeEvent(input$overlayPlot_colors, {
+    colorSelected <<- input$overlayPlot_colors
+  }, ignoreInit = TRUE)
+  
+  
+  
+  observe({
+    col <- input$overlayPlot_colorPicker
+    colorChoices <<- c(colorChoices, col)
+    updateSelectizeInput(
+      inputId = "overlayPlot_colors",
+      choices = colorChoices,
+      selected = colorSelected
+    )
+    isolate(updateTextInput(session, inputId = "overlayPlot_colorsText",
+                            label = NULL,
+                            value  = c(input$overlayPlot_colorsText,col)))
+  })
+  
  ####
   if (!interactive()) {
     session$onSessionEnded(function() {
@@ -706,6 +728,7 @@ createOverlayPlot <- function(plotDataFrame,
                                 pTheme = theme_prism(),
                                 pThemeOver = theme_few(),
                                 style =  "Overlayed",
+                                colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)]),
                                 currSpec = NULL) {
   
   if(currSpec == "InwardCurr") {

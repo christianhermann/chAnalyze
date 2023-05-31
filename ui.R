@@ -23,6 +23,67 @@ solidHeaderBoxes <-
   )
 
 
+colorBox <- function()
+{return(
+  solidHeaderBoxes$LightBlue(
+    title = "Colors",
+    width = 12,
+    fluidPage(
+      fluidRow(
+        column(
+          width = 6,
+          selectizeInput(
+            inputId = "overlayPlot_colors",
+            "Plot Colors",
+            choices = colorChoices,
+            selected = colorSelected,
+            multiple = T,
+            options = list(create = TRUE)
+          )
+        ),
+        column(
+          width = 6,
+          colorPicker(
+            inputId = "overlayPlot_colorPicker",
+            label = "Color List:",
+            choices = list(
+              "Standard" = c(
+                "#000000",
+                "#56B4E9",
+                "#009E73",
+                "#F0E442",
+                "#0072B2",
+                "#D55E00",
+                "#CC79A7",
+                "#999999",
+                "#E69F00"
+              ),
+              "Blues" = brewer_pal(palette = "Blues")(9),
+              "Reds" = brewer_pal(palette = "Reds")(9),
+              "Greens" = brewer_pal(palette = "Greens")(9),
+              "Greys" = brewer_pal(palette = "Greys")(9),
+              "Purples" = brewer_pal(palette = "Purples")(9),
+              "Reds" = brewer_pal(palette = "Reds")(9),
+              "Yellow Orange" = brewer_pal(palette = "YlOrBr")(9)
+            )
+          )
+        )
+      ),
+      fluidRow(
+        column(10,
+               textInput(inputId = "overlayPlot_colorsText", NULL, value = paste0(colorSelected, collapse = ","))),
+        column(2,
+               prettySwitch(inputId = "overlayPlot_switchColors", "use Text colors", status= "primary"),
+        )
+      )
+    ),
+    collapsed = TRUE
+  )
+)
+  
+}
+
+
 ##### Sidebar######
 sidebar <- dashboardSidebar(
   width = 200,
@@ -30,32 +91,32 @@ sidebar <- dashboardSidebar(
     id = "tabs",
     menuItem(
       "Whats New",
-      icon = icon("envelope", lib = "glyphicon"),
+      icon = icon("envelope"),
       tabName = "News"
     ),
     menuItem(
       "Data",
-      icon = icon("floppy-disk", lib = "glyphicon"),
+      icon = icon("database"),
       menuSubItem("Import/Export", tabName = "DataImportExport"),
       menuSubItem("View and Edit Data", tabName = "DataView")
     ),
     menuItem(
       "Kinetics",
-      icon = icon("stats", lib = "glyphicon"),
+      icon = icon("chart-line"),
       menuSubItem("Calculation", tabName = "ViewCalculation"),
       menuSubItem("View Kinetics", tabName = "KineticsView"),
       menuSubItem("Overlays", tabName = "KineticsOverlays")
     ),
     menuItem(
       "Settings",
-      icon = icon("wrench",  lib = "glyphicon"),
+      icon = icon("wrench"),
       menuSubItem("Data Import", tabName = "SettingsDataImport"),
       menuSubItem("Data Manipulation", tabName = "SettingsDataManipulation"),
       menuSubItem("Other", tabName = "SettingsOther")
     ),
     menuItem(
       "About",
-      icon = icon("info-sign", lib = "glyphicon"),
+      icon = icon("info"),
       tabName = "About"
     )
   )
@@ -63,24 +124,23 @@ sidebar <- dashboardSidebar(
 
 ##### Body#####
 body <- dashboardBody(
-#   tags$script("$(document).on('shiny:connected', function(event) {
-# var myWidth = $(window).width();
-# Shiny.onInputChange('shiny_width',myWidth)
-# 
-# });"),
-#   
-#   tags$script("$(document).on('shiny:connected', function(event) {
-# var myHeight = $(window).height();
-# Shiny.onInputChange('shiny_height',myHeight)
-# 
-# });"),
-  
+  #   tags$script("$(document).on('shiny:connected', function(event) {
+  # var myWidth = $(window).width();
+  # Shiny.onInputChange('shiny_width',myWidth)
+  # 
+  # });"),
+  #   
+  #   tags$script("$(document).on('shiny:connected', function(event) {
+  # var myHeight = $(window).height();
+  # Shiny.onInputChange('shiny_height',myHeight)
+  # 
+  # });"),
   
   useSweetAlert(),
   tabItems(
     tabItem(
       "News",
-      h3("Ion Channel Kinetic Analyzer"),
+      h3("Chanalyze - Ion Channel Kinetic Analyzer"),
       h4("New backend, new GUI, new everything!"),
       h4("Faster, more stable, new functionality, better error messages!"),
       h4("You will love it!")
@@ -94,10 +154,9 @@ body <- dashboardBody(
           actionButton(
             "Import_Data",
             "Import Measurements",
-            icon = icon("floppy-open", lib = "glyphicon")
+            icon = icon("floppy-disk")
           ),
-          actionButton("Load_Rdata", " Load Rdata", icon = icon("open", lib =
-                                                                  "glyphicon")),
+          actionButton("Load_Rdata", " Load Rdata", icon = icon("r-project", fill = "steelblue")),
           hr(),
           withLoader(
             textOutput("StatusDataImport"),
@@ -109,10 +168,8 @@ body <- dashboardBody(
         solidHeaderBoxes$Blue(
           title = "Export Data",
           width = 2,
-          actionButton("Save_xlsx", "Save .xlsx", icon = icon("book", lib =
-                                                                "glyphicon")),
-          actionButton("Save_rData", "Save Rdata", icon = icon("save", lib =
-                                                                 "glyphicon"))
+          actionButton("Save_xlsx", "Save .xlsx", icon = icon("file-excel")),
+          actionButton("Save_rData", "Save Rdata", icon = icon("r-project"))
         ),
         solidHeaderBoxes$Blue(
           title = "Workspace",
@@ -120,7 +177,7 @@ body <- dashboardBody(
           actionButton(
             "ChangeWorkspace",
             "Change Workspace!",
-            icon = icon("folder-open", lib = "glyphicon")
+            icon = icon("folder-open")
           ),
           hr(),
           textOutput("Workspace")
@@ -215,19 +272,19 @@ body <- dashboardBody(
                       width = 2,
                       div(
                         actionButton(
-                        inputId = "calculateSeries",
-                        label = "Calculate"
-                      ), 
-                      style = 'top: 25px;position:relative;')
+                          inputId = "calculateSeries",
+                          label = "Calculate"
+                        ), 
+                        style = 'top: 25px;position:relative;')
                     ),
                     column(
                       width = 2,
                       div(
-                      actionButton(
-                        inputId = "calculateAllSeries",
-                        label = "Calculate All"
-                      ), 
-                      style = 'top: 25px;position:relative;')
+                        actionButton(
+                          inputId = "calculateAllSeries",
+                          label = "Calculate All"
+                        ), 
+                        style = 'top: 25px;position:relative;')
                     )
                   )
                 )
@@ -302,72 +359,151 @@ body <- dashboardBody(
                   direction = "vertical"
                 ),
                 
-                icon = icon("gear"),
+                icon = icon("list-check"),
                 
-                tooltip = tooltipOptions(title = "Click to see inputs !")
+                tooltip = tooltipOptions(title = "Click to change inputs !")
               ),
               fluidRow(
                 column(
                   width = 12,
-
-               ggplot_output("kineticsViewPlot", height  = "800px"),
-               # downloadButton("downloadKineticPlot", "Download the plot"),
-               actionButton(inputId = "kineticToPlotly",
-                            label = "Show Interactive Plot")
+                  
+                  ggplot_output("kineticsViewPlot", height  = "800px"),
+                  # downloadButton("downloadKineticPlot", "Download the plot"),
+                  actionButton(inputId = "kineticToPlotly",
+                               label = "Show Interactive Plot")
                 ),
-               bsModal("kineticsViewPlotlyModal", "View Kinetic", "kineticToPlotly", size = "large",
-                       # Add a switch and a text input to the modal dialog
-              plotlyOutput("kineticsViewPlotly", height = "800px")
+                bsModal("kineticsViewPlotlyModal", "View Kinetic", "kineticToPlotly", size = "large",
+                        # Add a switch and a text input to the modal dialog
+                        plotlyOutput("kineticsViewPlotly", height = "800px")
+                )
               )
-            )
             )
     ),
     tabItem(
       "KineticsOverlays",
       fluidPage(
-        dropdownButton(         
-          radioGroupButtons(
-            inputId = "curSpecMedianView",
-            label = "Label",
-            choiceNames = c("Inward", 
-                            "Outward"),
-            choiceValues = c("InwardCurr", "OutwardCurr"),
-            selected = "OutwardCurr",
-            disabled = TRUE,
-            individual = TRUE,
-            checkIcon = list(
-              yes = tags$i(class = "fa fa-circle", 
-                           style = "color: steelblue"),
-              no = tags$i(class = "fa fa-circle-o", 
-                          style = "color: steelblue"))
+        fluidRow(
+          column(
+            width = 2,
+            dropdownButton(         
+              radioGroupButtons(
+                inputId = "curSpecMedianView",
+                label = "Label",
+                choiceNames = c("Inward", 
+                                "Outward"),
+                choiceValues = c("InwardCurr", "OutwardCurr"),
+                selected = "OutwardCurr",
+                disabled = TRUE,
+                individual = TRUE,
+                checkIcon = list(
+                  yes = tags$i(class = "fa fa-circle", 
+                               style = "color: steelblue"),
+                  no = tags$i(class = "fa fa-circle-o", 
+                              style = "color: steelblue"))
+              ),
+              radioGroupButtons(
+                inputId = "curMedianStyle",
+                label = "Style",
+                choiceNames = c("Overlayed", 
+                                "Single"),
+                choiceValues = c("Overlayed", "Single"),
+                selected = "Overlayed",
+                individual = TRUE,
+                checkIcon = list(
+                  yes = tags$i(class = "fa fa-circle", 
+                               style = "color: steelblue"),
+                  no = tags$i(class = "fa fa-circle-o", 
+                              style = "color: steelblue"))
+              ),
+              checkboxGroupButtons(
+                inputId = "measurementPickerMedianView",
+                label = "choose Measurements",
+                choices = "",
+                checkIcon = list(
+                  yes = tags$i(class = "fa fa-check-square", 
+                               style = "color: steelblue"),
+                  no = tags$i(class = "fa fa-square-o", 
+                              style = "color: steelblue")),
+                direction = "vertical"
+              ),
+              icon = icon("list-check"),
+              tooltip = tooltipOptions(title = "Click to change inputs !")
+            )
           ),
-          radioGroupButtons(
-            inputId = "curMedianStyle",
-            label = "Style",
-            choiceNames = c("Overlayed", 
-                            "Single"),
-            choiceValues = c("Overlayed", "Single"),
-            selected = "Overlayed",
-            individual = TRUE,
-            checkIcon = list(
-              yes = tags$i(class = "fa fa-circle", 
-                           style = "color: steelblue"),
-              no = tags$i(class = "fa fa-circle-o", 
-                          style = "color: steelblue"))
+          column(
+            width = 2,
+            dropdownButton(
+              numericRangeInput(
+                inputId = "rangeXlimsOverlayPlot",
+                label = "X-Axis",
+                value = c(0,10),
+                min = -10000,
+                max = 10000
+              ),
+              textInput(
+                inputId =  "XaxisBreaks", 
+                label ="Ticks X-Axis", 
+                placeholder = "Enter comma seperated values")
+              ,
+              numericRangeInput(
+                inputId = "rangeYlimsOverlayPlot",
+                label = "Y-Axis",
+                value = c(0,100),
+                min = -10000,
+                max = 10000
+              ),
+              textInput(
+                inputId = "YaxisBreaks", 
+                label =  "Ticks Y-Axis", 
+                placeholder = "Enter comma seperated values")
+              ,
+              fluidRow(
+                column(
+                  width = 4,
+                  numericInput(
+                    inputId = "lineSizeOverlayPlot", 
+                    label =  "Linesize",
+                    value = 1
+                    )
+                  ),
+                column(
+                  width = 4,
+                  numericInput(
+                    inputId = "fontSizeOverlayPlot", 
+                    label =  "Fontsize",
+                    value = 12
+                    )
+                  ),
+                column(
+                  width = 4,
+                  numericInput(
+                    inputId = "tickSizeOverlayPlot", 
+                    label =  "Ticksize",
+                    value = 8
+                    )
+                  )
+              ),
+              prettyToggle(
+                inputId = "overlayPlotLegend",
+                label_on = "Legend in plot!", 
+                label_off = "No legend in plot!",
+                value = FALSE,
+                outline = TRUE,
+                plain = TRUE,
+                icon_on = icon("thumbs-up"), 
+                icon_off = icon("thumbs-down"),
+                bigger = TRUE
+              ),
+              
+              
+              icon = icon("sliders"),
+              tooltip = tooltipOptions(title = "Click to change axes and more !")
+            )
           ),
-          checkboxGroupButtons(
-          inputId = "measurementPickerMedianView",
-          label = "choose Measurements",
-          choices = "",
-          checkIcon = list(
-            yes = tags$i(class = "fa fa-check-square", 
-                         style = "color: steelblue"),
-            no = tags$i(class = "fa fa-square-o", 
-                        style = "color: steelblue")),
-          direction = "vertical"
-        ),
-          icon = icon("gear"),
-          tooltip = tooltipOptions(title = "Click to see inputs !")
+          column(
+            width = 8,
+            colorBox(),
+          )
         ),
         fluidRow(
           column(
@@ -382,7 +518,7 @@ body <- dashboardBody(
                   plotlyOutput("kineticsOverlayPlotly", height = "800px")
           )
         )
-    )
+      )
     ),
     tabItem(
       "SettingsDataImport",
@@ -557,37 +693,37 @@ body <- dashboardBody(
       fluidRow(
         column(
           width = 3,
-        solidHeaderBoxes$Blue(
-          title = "Up/Downsampling",
-          width = 12,
-          numericInput(
-            inputId = "resolutionUpsampling",
-            label = "Factor Upsampling",
-            value = 10,
-            min = 1,
-            max = 5000
-          ),
-          numericInput(
-            inputId = "resolutionDownsampling",
-            label = "Factor Downsampling",
-            value = 10,
-            min = 1,
-            max = 5000
-          ),
-          radioGroupButtons(
-            inputId = "settingsSampling",
-            label = "Type:",
-            choices = c("Upsampling", 
-                        "Downsampling",
-                        "Both"),
-            status = "primary",
-            checkIcon = list(
-              yes = icon("ok", 
-                         lib = "glyphicon"),
-              no = icon("remove",
-                        lib = "glyphicon"))
+          solidHeaderBoxes$Blue(
+            title = "Up/Downsampling",
+            width = 12,
+            numericInput(
+              inputId = "resolutionUpsampling",
+              label = "Factor Upsampling",
+              value = 10,
+              min = 1,
+              max = 5000
+            ),
+            numericInput(
+              inputId = "resolutionDownsampling",
+              label = "Factor Downsampling",
+              value = 10,
+              min = 1,
+              max = 5000
+            ),
+            radioGroupButtons(
+              inputId = "settingsSampling",
+              label = "Type:",
+              choices = c("Upsampling", 
+                          "Downsampling",
+                          "Both"),
+              status = "primary",
+              checkIcon = list(
+                yes = icon("ok", 
+                           lib = "glyphicon"),
+                no = icon("remove",
+                          lib = "glyphicon"))
+            )
           )
-        )
         ),
         column(
           width = 3,
@@ -613,11 +749,11 @@ body <- dashboardBody(
 
 
 ##### Header#####
-header <- dashboardHeader(title = span("IcKa"),
+header <- dashboardHeader(title = span("Chanalyze"),
                           titleWidth  = 200)
 #####
 
 
 ui <- function(request) {
-  dashboardPage(title = "Ion Channel Kinetic Analyzer",  header, sidebar, body, skin = "red")
+  dashboardPage(title = "Chanalyze - Ion Channel Kinetic Analyzer",  header, sidebar, body, skin = "red")
 }
