@@ -3,6 +3,7 @@ shinyServer(function(input, output, session) {
   
   #### Observe Tabs######
   observeEvent(input$tabs, {
+    print(input$tabs)
     ##### Import Export Data######
     if (input$tabs == "DataImportExport") {
       output$Workspace <- renderText({

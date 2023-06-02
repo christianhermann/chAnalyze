@@ -31,7 +31,8 @@ library(smoother)
 library(stringr)
 library(matrixStats)
 library(fontawesome)
-
+library(tidyr)
+library(latex2exp)
 
 isDataImported <- FALSE
 isCalculated <- FALSE
@@ -40,7 +41,8 @@ dataList <- list()
 colorPalette <- c("#000000", "#0072B2", "#009E73",
                   "#D55E00", "#56B4E9", "#F0E442",
                   "#CC79A7", "#999999", "#E69F00")
-colorChoices <-  colorPalette
-colorSelected <-  colorPalette
-selectedColors <- c()
+colorChoices <-  list(Median = colorPalette, Statistic = colorPalette)
+colorSelected <-  list(Median = colorPalette, Statistic = colorPalette)
+selectedColors <- list(Median = c(), Statistic = c())
+seriesList <- c()
                      
