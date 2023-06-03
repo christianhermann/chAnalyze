@@ -23,7 +23,7 @@ solidHeaderBoxes <-
   )
 
 
-colorBox <- function()
+colorBox <- function(name)
 {
   return(
     solidHeaderBoxes$LightBlue(
@@ -33,10 +33,10 @@ colorBox <- function()
         column(
           width = 6,
           selectizeInput(
-            inputId = "overlayPlot_colors",
+            inputId = paste0(name,"Plot_colors"),
             "Plot Colors",
-            choices = colorChoices,
-            selected = colorSelected,
+            choices = colorChoices[[name]],
+            selected = colorSelected[[name]],
             multiple = T,
             options = list(create = TRUE)
           )
@@ -44,7 +44,7 @@ colorBox <- function()
         column(
           width = 6,
           colorPicker(
-            inputId = "overlayPlot_colorPicker",
+            inputId = paste0(name,"Plot_colorPicker"),
             label = "Color List:",
             choices = list(
               "Standard" = c(
@@ -73,14 +73,14 @@ colorBox <- function()
         column(
           10,
           textInput(
-            inputId = "overlayPlot_colorsText",
+            inputId = paste0(name,"Plot_colorsText"),
             NULL,
             value = paste0(colorSelected, collapse = ",")
           )
         ),
         column(
           2,
-          prettySwitch(inputId = "overlayPlot_switchColors", "use Text colors", status = "primary"),
+          prettySwitch(inputId =  paste0(name,"Plot_switchColors"), "use Text colors", status = "primary"),
         )
       )),
       collapsed = TRUE
@@ -516,7 +516,7 @@ body <- dashboardBody(
                   )
                 ),
                 column(width = 8,
-                       colorBox(),)
+                       colorBox("overlay"),)
               ),
               fluidRow(
                 column(
@@ -559,10 +559,25 @@ body <- dashboardBody(
                                     style = "color: steelblue")
                       )
                     ),
+                    radioGroupButtons(
+                      inputId = "curStatisticStyle",
+                      label = "Style",
+                      choiceNames = c("Overlayed",
+                                      "Single"),
+                      choiceValues = c("Overlayed", "Single"),
+                      selected = "Overlayed",
+                      individual = TRUE,
+                      checkIcon = list(
+                        yes = tags$i(class = "fa fa-circle",
+                                     style = "color: steelblue"),
+                        no = tags$i(class = "fa fa-circle-o",
+                                    style = "color: steelblue")
+                      )
+                    ),
                     textInput(
                       inputId = "statValueMarker",
                       label = "Time to:",
-                      value = "25,50,75,100;75,50,25,0"
+                      value = "25,50,75;100;75,50,25,0"
                     ),
                     checkboxGroupButtons(
                       inputId = "measurementPickerStatisticView",
@@ -653,7 +668,7 @@ body <- dashboardBody(
                   )
                 ),
                 column(width = 8,
-                       colorBox(),)
+                       colorBox("Statistic"))
               ),
               fluidRow(
                 column(
@@ -668,10 +683,11 @@ body <- dashboardBody(
                   "StatisticToPlotly",
                   size = "large",
                   # Add a switch and a text input to the modal dialog
-                  plotlyOutput("kineticsOverlayPlotly", height = "800px")
+                  plotlyOutput("kineticsStatisticPlotly", height = "800px")
                 )
               )
-            )),
+            )
+      ),
     tabItem(
       "SettingsDataImport",
       fluidRow(
@@ -922,6 +938,17 @@ body <- dashboardBody(
               numericInput(
                 "inputTimeUntilStack",
                 label = "Time Until Stacking",
+                value = 0,
+                min = 0,
+                max = 100,
+                step = 0.001
+              )
+            ),
+            tags$div(
+              title = "Get more precise de/inactivations by setting the startpoint of the calculation # seconds after the activation beginning.",
+              numericInput(
+                "durationPhotoswitch",
+                label = "Duration Photoswitch",
                 value = 0,
                 min = 0,
                 max = 100,

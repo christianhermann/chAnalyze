@@ -138,43 +138,46 @@ shinyServer(function(input, output, session) {
         type = "success"
       )
       isDataImported <- TRUE
-
-    if (newSeries == TRUE) {
-      dataList[[seriesName]][["rawData"]] <<- newDataList
-      dataList[[seriesName]][["preparedData"]] <<- preparedDataList
-      dataList[[seriesName]]$settings$currentSpec <<- currentSpec
-    }
-    if (newSeries == FALSE) {
-      dataList[[seriesName]][["rawData"]] <<-
-        c(dataList[[seriesName]][["rawData"]], newDataList)
-      dataList[[seriesName]][["preparedData"]] <<-
-        c(dataList[[seriesName]][["preparedData"]], preparedDataList)
-      dataList[[seriesName]]$settings$currentSpec <<- currentSpec
-    }
-    
-    updatePickerInput(
-      session = session,
-      inputId = "pickerSeries",
-      choices = names(dataList),
-      selected =  names(dataList)[1]
-    )
-    
-    updateSelectInput(
-      session = session,
-      inputId = "seriesPickerKineticsView",
-      choices = names(dataList),
-      selected =  names(dataList)[1]
-    )
-    
-    updatePickerInput(
-      session = session,
-      inputId = "seriesPickerCalculations",
-      choices = names(dataList),
-      selected =  names(dataList)[1]
-    )
-    
-    updateCurSpecKineticsView(seriesName)
-    updateMeasurementPickerMedianView(session)
+      
+      if (newSeries == TRUE) {
+        dataList[[seriesName]][["rawData"]] <<- newDataList
+        dataList[[seriesName]][["preparedData"]] <<- preparedDataList
+        dataList[[seriesName]]$settings$currentSpec <<- currentSpec
+      }
+      if (newSeries == FALSE) {
+        dataList[[seriesName]][["rawData"]] <<-
+          c(dataList[[seriesName]][["rawData"]], newDataList)
+        dataList[[seriesName]][["preparedData"]] <<-
+          c(dataList[[seriesName]][["preparedData"]], preparedDataList)
+        dataList[[seriesName]]$settings$currentSpec <<- currentSpec
+      }
+      seriesList <<- c(seriesList, seriesName)
+      
+      updatePickerInput(
+        session = session,
+        inputId = "pickerSeries",
+        choices = names(dataList),
+        selected =  names(dataList)[1]
+      )
+      
+      updateSelectInput(
+        session = session,
+        inputId = "seriesPickerKineticsView",
+        choices = names(dataList),
+        selected =  names(dataList)[1]
+      )
+      
+      updatePickerInput(
+        session = session,
+        inputId = "seriesPickerCalculations",
+        choices = names(dataList),
+        selected =  names(dataList)[1]
+      )
+      
+      updateCurSpecKineticsView(seriesName)
+      updateMeasurementPickerMedianView(session)
+      updateMeasurementPickerStatisticView(session)
+      
     },
     error = function(e) {
       sendSweetAlert(
@@ -240,10 +243,18 @@ shinyServer(function(input, output, session) {
   
   ####Calculations####
   observeEvent(input$calculateSeries, {
+    calculateFunction(input$seriesPickerCalculations)
+  })
+  
+  observeEvent(input$calculateAllSeries, {
+    map(seriesList, calculateFunction)
+  })
+  
+  calculateFunction <- function(series) {
     isCalculated <<- FALSE
     output$outPutCalc <- renderText({
       
-      seriesName <- input$seriesPickerCalculations
+      seriesName <- series
       dataSmooth <- calculateSmoothing(seriesName)
       isCalculated <<- TRUE
       #Create the smoothed model of the measurements and extract Indizes
@@ -269,6 +280,10 @@ shinyServer(function(input, output, session) {
       dataMedian <- calcKineticMedian(dataStacking)
       dataList[[seriesName]]$settings$selectedMeas <<- names(dataList[[seriesName]]$rawData)
       dataList[[seriesName]][["medianData"]] <<- dataMedian
+      
+      dataPeakTime <- calculatePeakTimes(seriesName, "normalizedSmoothedStackedData")
+      dataList[[seriesName]][["peakTimeData"]] <<- dataPeakTime
+      
       updatePickerTypeKineticsView(session)
       
       if (isCalculated == FALSE) {
@@ -278,7 +293,7 @@ shinyServer(function(input, output, session) {
       }
     })
     
-  })
+  }
   
   calculateSmoothing <- function(series) {
     data_list <- dataList[[series]]$preparedData
@@ -347,6 +362,17 @@ shinyServer(function(input, output, session) {
     return(c(list(data_list = data_list), stackPoint_list = list(stackPoint_list), list(stackParam = list(stackTime = stackTime, stackPoint = stackPoint, upsamplingResu = upsamplingResu, downsamplingResu = downsamplingResu, settingsSampling = settingsSampling))))
     
   }
+  
+  calculatePeakTimes <- function(series, data_temp) {
+    data_list <- dataList[[series]][[data_temp]]
+    stackTime <-getSettings(dataList[[series]], "stackParam")$stackTime
+    currSpec <- getSettings(dataList[[series]], "currentSpec")
+    timeUntilStack <- input$inputTimeUntilStack
+    durationPhotoswitch <- input$durationPhotoswitch
+    peakPoints <- splitStringValue(input$statValueMarker)
+    peakList <- map(data_list, \(x) get_peak_times(x,peakPoints$peakPointsBef, peakPoints$PeakPoint, peakPoints$peakPointsAft, currSpec, timeUntilStack, durationPhotoswitch, stackTime))
+    return(peakList)
+  }
   ####View Kinetics####
   ###Observers###
   observeEvent(input$seriesPickerKineticsView, {
@@ -389,8 +415,8 @@ shinyServer(function(input, output, session) {
   observeEvent(input$measurementPickerKineticsView, {
   },  ignoreInit = TRUE)
   
- render_ggplot("kineticsViewPlot",
-               expr = createKinPlot())
+  render_ggplot("kineticsViewPlot",
+                expr = createKinPlot())
   
   output$kineticsViewPlotly <- renderPlotly({
     return(ggplotly(createKinPlot()))
@@ -427,8 +453,8 @@ shinyServer(function(input, output, session) {
       createKineticPlot(combinedList, style =style,
                         pTitle = paste0(input$seriesPickerKineticsView,
                                         ": ", input$typePickerKineticsView),
-                                        currSpec = currSpec)
-
+                        currSpec = currSpec)
+    
     if(all(dim(kineticPlot$data) == c(0,0))) kineticPlot = ggplot()
     return(kineticPlot)
   }
@@ -505,6 +531,15 @@ shinyServer(function(input, output, session) {
   
   ####
   ####Median OVerlay Plot####
+  
+  render_ggplot("kineticsOverlayPlot",
+                expr = createMedianOverlayPlot())
+  
+  output$kineticsViewPlotly <- renderPlotly({
+    return(ggplotly(createMedianOverlayPlot()))
+  })
+  
+  
   createMedianOverlayPlot <-  function(){
     currSpec <- input$curSpecKineticsView
     data_list <- choseSelectedList(dataList,
@@ -515,7 +550,7 @@ shinyServer(function(input, output, session) {
     median_list <- map(dataList, \(x) x$medianData)
     combined_dataframe <- combineListtoLong(median_list)
     
-    createOverlayPlot(data_list, currSpec = currSpec, colorList = colorList)
+    createOverlayPlot(combined_dataframe, currSpec = currSpec, style = style, colorList = colorList)
   }
   
   updateMeasurementPickerMedianView <- function(session) {
@@ -554,7 +589,66 @@ shinyServer(function(input, output, session) {
                             value  = c(input$overlayPlot_colorsText,col)))
   })
   
- ####
+  ####
+  ####StatisticsPlot####
+  render_ggplot("kineticsStatisticPlot",
+                expr = createStatisticOverlayPlot())
+  
+  output$kineticsStatisticPlotly <- renderPlotly({
+    return(ggplotly(createStatisticOverlayPlot()))
+  })
+  
+  
+  createStatisticOverlayPlot <-  function(){
+    currSpec <- input$curSpecStatisticView
+    data_list <- choseSelectedList(dataList,
+                                   input$measurementPickerStatisticView)
+    colorList <- colorSelected$Statistic
+    if(input$StatisticPlot_switchColors == TRUE) colorList <- input$StatisticPlot_colorsText
+    style <- input$curStatisticStyle
+    
+    combined_dataframe <- combinePeakTimeList(dataList)
+    
+    createPeakStatisticPlot(combined_dataframe, colorList = colorList)
+  }
+  
+  updateMeasurementPickerStatisticView <- function(session) {
+    
+    updateCheckboxGroupButtons(
+      session = session,
+      inputId = "measurementPickerStatisticView",
+      choices = names(dataList),
+      selected = names(dataList),
+      checkIcon = list(
+        yes = tags$i(class = "fa fa-check-square",
+                     style = "color: steelblue"),
+        no = tags$i(class = "fa fa-square-o",
+                    style = "color: steelblue")
+      )
+    )
+  }
+  
+  ###Colors###
+  observeEvent(input$overlayPlot_colors, {
+    colorSelected <<- input$overlayPlot_colors
+  }, ignoreInit = TRUE)
+  
+  
+  
+  observe({
+    col <- input$overlayPlot_colorPicker
+    colorChoices <<- c(colorChoices, col)
+    updateSelectizeInput(
+      inputId = "overlayPlot_colors",
+      choices = colorChoices,
+      selected = colorSelected
+    )
+    isolate(updateTextInput(session, inputId = "overlayPlot_colorsText",
+                            label = NULL,
+                            value  = c(input$overlayPlot_colorsText,col)))
+  })
+  
+  ####
   if (!interactive()) {
     session$onSessionEnded(function() {
       stopApp()
@@ -562,6 +656,9 @@ shinyServer(function(input, output, session) {
     })
   }
 })
+
+
+
 
 ####Functions####
 
@@ -592,7 +689,7 @@ prepare_raw_data <-
            currentCol) {
     
     if(currentSpec == "Both") currentSpec <- c("InwardCurr" , "OutwardCurr")
-      
+    
     dataColNames <-
       data.frame(colName = c("Index", "Time", currentSpec),
                  colPos = as.numeric(c(1, timeCol, currentCol)))
@@ -623,12 +720,18 @@ dataListwoMedianData <- function(dataList) {
     return(dataList[-which(names(dataList) == "medianData")])
   return(dataList)
 }
+dataListwoPeakTimeData <- function(dataList) {
+  if (exists("peakTimeData", dataList))
+    return(dataList[-which(names(dataList) == "peakTimeData")])
+  return(dataList)
+}
 
 dataListwTypes <- function(dataList){
   dataList %<>% 
     dataListwoSettings()%>%
     dataListwoRawData() %>%
     dataListwoMedianData() %>%
+    dataListwoPeakTimeData
     return(dataList)
 }
 
@@ -692,6 +795,10 @@ createKineticPlot <-
            style =  "Overlayed",
            currSpec = NULL)
   {
+   
+    if(nrow(plotDataFrame) == 0) return(ggplot())
+    
+     
     kinPlot <-
       ggplot(plotDataFrame, aes(x = Time, y = .data[[currSpec]], color = Measurement)) +
       geom_line() + pTheme + ggtitle(pTitle)
@@ -706,10 +813,10 @@ createKineticPlot <-
     }
     if (style == "Median") {
       if(currSpec == "InwardCurr") {
-      kinPlot <-
-        ggplot(plotDataFrame)   +
-        geom_ribbon(aes(x = Time, ymin = Median + SD, ymax = Median),alpha = 0.3) +
-        geom_line(aes(x = Time, y = Median)) + pTheme + ggtitle(pTitle)
+        kinPlot <-
+          ggplot(plotDataFrame)   +
+          geom_ribbon(aes(x = Time, ymin = Median + SD, ymax = Median),alpha = 0.3) +
+          geom_line(aes(x = Time, y = Median)) + pTheme + ggtitle(pTitle)
       }
       if(currSpec == "OutwardCurr") {
         kinPlot <-
@@ -718,19 +825,21 @@ createKineticPlot <-
           geom_line(aes(x = Time, y = Median)) + pTheme + ggtitle(pTitle)
       }
     }
-      
+    
     kinPlot <- kinPlot + theme(legend.position = "right")
     return(kinPlot)
   }
 
 
 createOverlayPlot <- function(plotDataFrame,
-                                pTitle = "Plot",
-                                pTheme = theme_prism(),
-                                pThemeOver = theme_few(),
-                                style =  "Overlayed",
-                                colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)]),
-                                currSpec = NULL) {
+                              pTitle = "Plot",
+                              pTheme = theme_prism(),
+                              pThemeOver = theme_few(),
+                              style =  "Overlayed",
+                              colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)]),
+                              currSpec = NULL) {
+  
+  if(nrow(plotDataFrame) == 0) return(ggplot())
   
   if(currSpec == "InwardCurr") {
     overlayPlot <-
@@ -744,6 +853,15 @@ createOverlayPlot <- function(plotDataFrame,
       geom_ribbon(aes(x = Time, ymin = Median - SD, ymax = Median, fill = Measurement),alpha = 0.3) +
       geom_line(aes(x = Time, y = Median, color = Measurement)) + pTheme + ggtitle(pTitle)
   }
+  
+  if (style == "Single"){
+    overlayPlot <-
+      overlayPlot + facet_wrap(
+        ~ Measurement,
+        ncol = 10) + pThemeOver
+  }
+  
+  
   overlayPlot <- overlayPlot + theme(legend.position = "right")
   
   return(overlayPlot)
@@ -791,7 +909,7 @@ calcKineticMedian <- function(data_list, currSpec) {
 }
 
 combineListtoWide <- function(data_list) {
-
+  
   pad_data <- pad_dataframes(data_list)
   
   combined_data_list <- bind_cols(pad_data, .name_repair = "universal_quiet")
@@ -850,7 +968,7 @@ normalize_data <- function(data_list, columnSpec) {
       data_list[[columnSpec]] <- newVal }
   } else {
     # For "Both" column specification
-
+    
     inward_values <- data_list[[columnSpec[1]]] * - 1
     outward_values <- data_list[[columnSpec[2]]]
     
@@ -899,9 +1017,9 @@ normalize_data_with_Info <- function(data_list, columnSpec, normInfo) {
     max_value <- values[normInfo$max_norm_Index]
     min_valueAkt <- values[normInfo$min_norm_Akt_Index]
     min_valueInakt <- values[normInfo$min_norm_Inakt_Index]
-
     
-        if ((min_valueAkt || min_valueInakt) == max_value) {
+    
+    if ((min_valueAkt || min_valueInakt) == max_value) {
       stop("All values in the column are the same!")
     }
     if (columnSpec == "InwardCurr") {
@@ -922,14 +1040,14 @@ normalize_data_with_Info <- function(data_list, columnSpec, normInfo) {
     inward_max_value <- inward_values[normInfo$inward_max_norm_Index]
     inward_min_valueAkt <-inward_values[normInfo$inward_min_norm_Akt_Index]
     inward_min_valueInakt <-inward_values[normInfo$inward_min_norm_Inakt_Index]
-
+    
     inward_newVal <- -100 * (inward_values[1:normInfo$inward_max_norm_Index] - inward_min_valueAkt) / (inward_max_value - inward_min_valueAkt)
     inward_newVal <- c(inward_newVal[-1], -100 * (inward_values[normInfo$inward_max_norm_Index:length(inward_values)] - inward_min_valueInakt) / (inward_max_value - inward_min_valueInakt))
     
     outward_max_value <- outward_values[normInfo$outward_max_norm_Index]
     outward_min_valueAkt <- outward_values[normInfo$outward_min_norm_Akt_Index]
     outward_min_valueInakt <- outward_values[normInfo$outward_min_norm_Inakt_Index]
-
+    
     outward_newVal <- -100 * (outward_values[1:normInfo$outward_max_norm_Index] - outward_min_valueAkt) / (outward_max_value - outward_min_valueAkt)
     outward_newVal <- c(outward_newVal[-1], 100 * (outward_values[normInfo$outward_max_norm_Index:length(outward_values)] - outward_min_valueInakt) / (outward_max_value - outward_min_valueInakt))
     
@@ -998,7 +1116,7 @@ increase_resolution <- function(data, increase = 10) {
     if (col != "Index") {
       y <- data[[col]]  # Select the column to interpolate
       
-      interp <- approx(x, y, xout = new_x)  # Interpolate y-values at new x-values
+      interp <- approx(x, y, xout = new_x, method = "constant")  # Interpolate y-values at new x-values
       
       new_data[col] <- interp$y  # Store the interpolated column in the new dataframe
     }
@@ -1053,10 +1171,90 @@ getStackTimePoints <- function(data_frame, stackPoint, columnSpec) {
 
 moveTimeToStackTime <- function(data_frame, stackPoint_frame, stackTime){
   data_frame$Time <- data_frame$Time - stackPoint_frame$crossing_time_points + stackTime
-    return(data_frame)
+  return(data_frame)
 }
 
 moveIndexToStackIndex <- function(data_frame,  stackInfo){
   data_frame$Index <- data_frame$Index - stackInfo$crossing_indices
   return(data_frame)
+}
+
+get_peak_times <- function(data_frame, peakPointsBef, peakPoint, peakPointsAft, currSpec, timeUntilStack = 0, durationPhotoswitch = 0, stackTime = 0) {
+  if(currSpec == "InwardCurr") {
+    data_frame[[currSpec]] <- data_frame[[currSpec]] * - 1}
+  
+  peakTimesBef <- c()
+  for (i in seq_along(peakPointsBef)) {
+    idx <- which(data_frame[[currSpec]] >= peakPointsBef[i])[1]
+    peakTimesBef[i] <- data_frame$Time[idx]
+  }
+  
+  idx <- which(data_frame[[currSpec]] >= peakPoint)[1]
+  peakTime <- data_frame$Time[idx]
+  
+  peakTimesAft <- c()
+  for (i in seq_along(peakPointsAft)) {
+    idx <- which(data_frame[[currSpec]] <= peakPointsAft[i] & data_frame$Time > peakTime)[1]
+    peakTimesAft[i] <- data_frame$Time[idx] - durationPhotoswitch
+  }
+  peakPointsBef <- paste0("$bP_{", peakPointsBef,"\\%}$")
+  peakPoint <- paste0("$P_{", peakPoint,"\\%}$")
+  peakPointsAft <- paste0("$pP_{", peakPointsAft,"\\%}$")
+  
+  peakTimes <- data.frame(Marker = c(peakPointsBef, peakPoint, peakPointsAft), Time = c(peakTimesBef, peakTime, peakTimesAft))
+  peakTimes$Marker <- factor(peakTimes$Marker, levels = unique(peakTimes$Marker))
+  peakTimes$Time <- peakTimes$Time - stackTime - timeUntilStack
+  return(peakTimes)
+}
+
+splitStringValue <- function(value) {
+  split_values <- strsplit(value, ";")[[1]]
+  
+  # Split each element by ","
+  split_values <- strsplit(split_values, ",")
+  
+  # Convert the values to numbers
+  numeric_values <- map(split_values,  as.numeric)
+  names(numeric_values) <- c("peakPointsBef", "PeakPoint","peakPointsAft")
+  return(numeric_values)
+}
+
+
+combinePeakTimeList <- function(data_list) {
+  
+  list_peak <-map(data_list, \(x) choseSelectedList(x,"peakTimeData")$peakTimeData)
+  
+  peak_list <- map(list_peak, \(x) {
+     data_frame <- cbind(Marker = x[[1]]$Marker, map_df(x, \(y) y$Time)) 
+      return(pivot_longer(data_frame,-Marker))})
+  
+  data_frame_peaks <- bind_rows(peak_list, .id = "Series")
+  return(data_frame_peaks)
+}
+
+createPeakStatisticPlot <- function(peak_data_frame,           
+                                    pTitle = "Plot",
+                                    pTheme = theme_prism(),
+                                    pThemeOver = theme_few(),
+                                    style =  "Overlayed",
+                                    colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)])) {
+  if(nrow(peak_data_frame) == 0) return(ggplot())
+  
+ statPlot <-  ggplot(peak_data_frame, aes(x = Marker, y = value, color = Series)) +
+geom_boxplot( position = position_dodge2()) +
+geom_jitter(alpha = 0.4,position = position_jitterdodge()) +
+stat_boxplot(position = position_dodge(0.75),
+geom = "errorbar",width = 0.3) +
+    scale_x_discrete(labels = TeX)+
+    labs(x = "", y = "Time (s)") +
+    pTheme
+  
+  if (style == "Single"){
+    statPlot <-
+      statPlot + facet_wrap(
+        ~ Series,
+        ncol = 10,
+      ) + pThemeOver
+  }
+  
 }
