@@ -535,7 +535,7 @@ shinyServer(function(input, output, session) {
   render_ggplot("kineticsOverlayPlot",
                 expr = createMedianOverlayPlot())
   
-  output$kineticsViewPlotly <- renderPlotly({
+  output$kineticsOverlayPlotly <- renderPlotly({
     return(ggplotly(createMedianOverlayPlot()))
   })
   
@@ -571,18 +571,18 @@ shinyServer(function(input, output, session) {
   
   ###Colors###
   observeEvent(input$overlayPlot_colors, {
-    colorSelected <<- input$overlayPlot_colors
+    colorSelected$Median <<- input$overlayPlot_colors
   }, ignoreInit = TRUE)
   
   
   
   observe({
     col <- input$overlayPlot_colorPicker
-    colorChoices <<- c(colorChoices, col)
+    colorChoices$Median <<- c(colorChoices$Median, col)
     updateSelectizeInput(
       inputId = "overlayPlot_colors",
-      choices = colorChoices,
-      selected = colorSelected
+      choices = colorChoices$Median,
+      selected = colorSelected$Median
     )
     isolate(updateTextInput(session, inputId = "overlayPlot_colorsText",
                             label = NULL,
@@ -629,23 +629,23 @@ shinyServer(function(input, output, session) {
   }
   
   ###Colors###
-  observeEvent(input$overlayPlot_colors, {
-    colorSelected <<- input$overlayPlot_colors
+  observeEvent(input$StatisticPlot_colors, {
+    colorSelected$Statistic <<- input$StatisticPlot_colors
   }, ignoreInit = TRUE)
   
   
   
   observe({
-    col <- input$overlayPlot_colorPicker
-    colorChoices <<- c(colorChoices, col)
+    col <- input$Statistic_colorPicker
+    colorChoices$Statistic <<- c(colorChoices$Statistic, col)
     updateSelectizeInput(
-      inputId = "overlayPlot_colors",
-      choices = colorChoices,
-      selected = colorSelected
+      inputId = "StatisticPlot_colors",
+      choices = colorChoices$Statistic,
+      selected = colorSelected$Statistic
     )
-    isolate(updateTextInput(session, inputId = "overlayPlot_colorsText",
+    isolate(updateTextInput(session, inputId = "Statisticplot_colorsText",
                             label = NULL,
-                            value  = c(input$overlayPlot_colorsText,col)))
+                          value  = c(input$StatisticPlot_colorsText,col)))
   })
   
   ####
@@ -837,7 +837,8 @@ createOverlayPlot <- function(plotDataFrame,
                               pThemeOver = theme_few(),
                               style =  "Overlayed",
                               colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)]),
-                              currSpec = NULL) {
+                              currSpec = NULL,
+                              lineSize = 1) {
   
   if(nrow(plotDataFrame) == 0) return(ggplot())
   
@@ -845,13 +846,15 @@ createOverlayPlot <- function(plotDataFrame,
     overlayPlot <-
       ggplot(plotDataFrame)   +
       geom_ribbon(aes(x = Time, ymin = Median + SD, ymax = Median, fill = Measurement),alpha = 0.3) +
-      geom_line(aes(x = Time, y = Median, color = Measurement)) + pTheme + ggtitle(pTitle)
+      geom_line(aes(x = Time, y = Median, color = Measurement), linewidth = lineSize ) + pTheme + ggtitle(pTitle) +
+      ylab("Percentage of Max. Cur") + xlab("Time (s)")
   }
   if(currSpec == "OutwardCurr") {
     overlayPlot <-
       ggplot(plotDataFrame)   +
       geom_ribbon(aes(x = Time, ymin = Median - SD, ymax = Median, fill = Measurement),alpha = 0.3) +
-      geom_line(aes(x = Time, y = Median, color = Measurement)) + pTheme + ggtitle(pTitle)
+      geom_line(aes(x = Time, y = Median, color = Measurement), linewidth = lineSize) + pTheme + ggtitle(pTitle) + 
+      ylab("Percentage of Max. Cur") + xlab("Time (s)")
   }
   
   if (style == "Single"){
@@ -1237,17 +1240,27 @@ createPeakStatisticPlot <- function(peak_data_frame,
                                     pTheme = theme_prism(),
                                     pThemeOver = theme_few(),
                                     style =  "Overlayed",
-                                    colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)])) {
+                                    colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)]),
+                                    lineSize = 1) {
   if(nrow(peak_data_frame) == 0) return(ggplot())
   
  statPlot <-  ggplot(peak_data_frame, aes(x = Marker, y = value, color = Series)) +
-geom_boxplot( position = position_dodge2()) +
+geom_boxplot( position = position_dodge2(), linewidth = lineSize ) +
 geom_jitter(alpha = 0.4,position = position_jitterdodge()) +
 stat_boxplot(position = position_dodge(0.75),
-geom = "errorbar",width = 0.3) +
+geom = "errorbar",width = 0.3, linewidth = lineSize) +
     scale_x_discrete(labels = TeX)+
     labs(x = "", y = "Time (s)") +
-    pTheme
+    pTheme + 
+   stat_compare_means(
+     method = "wilcox.test",
+     aes(label = ..p.signif..),
+     show.legend = FALSE,
+     symnum.args = list(
+       cutpoints = c(0,  0.001, 0.01, 0.05, 1),
+       symbols = c("***", "**", "*", "")
+     )
+   )
   
   if (style == "Single"){
     statPlot <-
@@ -1257,4 +1270,23 @@ geom = "errorbar",width = 0.3) +
       ) + pThemeOver
   }
   
+}
+
+colorPlot <- function(origPlot, colors){
+  newPlot <- origPlot + 
+    scale_color_manual(values = colors, aesthetics = c("colour", "fill"))
+  return(newPlot)
+}
+
+changeAxisLims <- function(origPlot, xALims, xBreaks, yALims, yBreaks){
+  # newPlot <- origPlot + coord_cartesian(xALims, yALims, expand = F)
+  newPlot <- origPlot + 
+    scale_y_continuous(breaks = c(yBreaks), limits = yALims, expand = c(0,0)) +
+    scale_x_continuous(breaks = c(xBreaks), limits = xALims, expand = c(0,0))
+  return(newPlot)
+}
+
+changeFontSize <- function(origPlot, fontSize) {
+  newPlot <- origPlot + theme(text = element_text(size = 12 ))
+                              return(newPlot)
 }

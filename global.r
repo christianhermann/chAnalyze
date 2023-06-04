@@ -33,7 +33,7 @@ library(matrixStats)
 library(fontawesome)
 library(tidyr)
 library(latex2exp)
-
+library(ggpubr)
 isDataImported <- FALSE
 isCalculated <- FALSE
 dataList <- list()

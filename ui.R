@@ -75,7 +75,7 @@ colorBox <- function(name)
           textInput(
             inputId = paste0(name,"Plot_colorsText"),
             NULL,
-            value = paste0(colorSelected, collapse = ",")
+            value = c("#000000", "#0072B2", "#009E73", "#D55E00", "#56B4E9" ,"#F0E442", "#CC79A7", "#999999", "#E69F00")
           )
         ),
         column(
@@ -488,14 +488,6 @@ body <- dashboardBody(
                           label =  "Fontsize",
                           value = 12
                         )
-                      ),
-                      column(
-                        width = 4,
-                        numericInput(
-                          inputId = "tickSizeOverlayPlot",
-                          label =  "Ticksize",
-                          value = 8
-                        )
                       )
                     ),
                     prettyToggle(
@@ -639,14 +631,6 @@ body <- dashboardBody(
                           inputId = "fontSizeStatisticPlot",
                           label =  "Fontsize",
                           value = 12
-                        )
-                      ),
-                      column(
-                        width = 4,
-                        numericInput(
-                          inputId = "tickSizeStatisticPlot",
-                          label =  "Ticksize",
-                          value = 8
                         )
                       )
                     ),
