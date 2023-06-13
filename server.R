@@ -3,7 +3,6 @@ shinyServer(function(input, output, session) {
   
   #### Observe Tabs######
   observeEvent(input$tabs, {
-    print(input$tabs)
     ##### Import Export Data######
     if (input$tabs == "DataImportExport") {
       output$Workspace <- renderText({
@@ -151,8 +150,9 @@ shinyServer(function(input, output, session) {
           c(dataList[[seriesName]][["preparedData"]], preparedDataList)
         dataList[[seriesName]]$settings$currentSpec <<- currentSpec
       }
-      seriesList <<- c(seriesList, seriesName)
-      
+      seriesList$all <<- c(seriesList$all, seriesName)
+      seriesList$Median
+      seriesList$Statistic
       updatePickerInput(
         session = session,
         inputId = "pickerSeries",
@@ -544,13 +544,24 @@ shinyServer(function(input, output, session) {
     currSpec <- input$curSpecKineticsView
     data_list <- choseSelectedList(dataList,
                                    input$measurementPickerMedianView)
-    colorList <- colorSelected
+    
+    seriesList$Median <- input$measurementPickerMedianView 
+    
+    colorList <- colorSelected$Median
     if(input$overlayPlot_switchColors == TRUE) colorList <- input$overlayPlot_colorsText
     style <- input$curMedianStyle
     median_list <- map(dataList, \(x) x$medianData)
     combined_dataframe <- combineListtoLong(median_list)
+    xALims <- input$rangeXlimsOverlayPlot
+    xBreaks <- input$XaxisBreaks
+    yALims <- input$rangeYlimsOverlayPlot
+    yBreaks <- input$YaxisBreaks
+    fontSize <- input$fontSizeOverlayPlot
+    lineSize <- input$lineSizeOverlayPlot
     
-    createOverlayPlot(combined_dataframe, currSpec = currSpec, style = style, colorList = colorList)
+    newPlot <- createOverlayPlot(combined_dataframe, currSpec = currSpec, style = style, lineSize = lineSize)
+    finalPlot <- customizePlot(newPlot, colorList, xALims, xBreaks, yALims, yBreaks, fontSize)
+    return(finalPlot)
   }
   
   updateMeasurementPickerMedianView <- function(session) {
@@ -573,8 +584,6 @@ shinyServer(function(input, output, session) {
   observeEvent(input$overlayPlot_colors, {
     colorSelected$Median <<- input$overlayPlot_colors
   }, ignoreInit = TRUE)
-  
-  
   
   observe({
     col <- input$overlayPlot_colorPicker
@@ -603,13 +612,23 @@ shinyServer(function(input, output, session) {
     currSpec <- input$curSpecStatisticView
     data_list <- choseSelectedList(dataList,
                                    input$measurementPickerStatisticView)
+    seriesList$Statistic <- input$measurementPickerStatisticView 
+    
     colorList <- colorSelected$Statistic
     if(input$StatisticPlot_switchColors == TRUE) colorList <- input$StatisticPlot_colorsText
     style <- input$curStatisticStyle
-    
+    xALims <- input$rangeXlimsStatisticPlot
+    xBreaks <- input$XaxisBreaksStatisticPlot
+    yALims <- input$rangeYlimsStatisticPlot
+    yBreaks <- input$YaxisBreaksStatisticPlot
+    fontSize <- input$fontSizeStatisticPlot
+    lineSize <- input$lineSizeStatisticPlot
     combined_dataframe <- combinePeakTimeList(dataList)
     
-    createPeakStatisticPlot(combined_dataframe, colorList = colorList)
+    newPlot <- createPeakStatisticPlot(combined_dataframe, lineSize = lineSize)
+    
+    finalPlot <- customizePlot(newPlot, colorList, xALims, xBreaks, yALims, yBreaks, fontSize)
+    return(finalPlot)
   }
   
   updateMeasurementPickerStatisticView <- function(session) {
@@ -633,8 +652,6 @@ shinyServer(function(input, output, session) {
     colorSelected$Statistic <<- input$StatisticPlot_colors
   }, ignoreInit = TRUE)
   
-  
-  
   observe({
     col <- input$Statistic_colorPicker
     colorChoices$Statistic <<- c(colorChoices$Statistic, col)
@@ -648,13 +665,82 @@ shinyServer(function(input, output, session) {
                           value  = c(input$StatisticPlot_colorsText,col)))
   })
   
+  ####Saving/Loading
+  
+  observe({
+  volumes <- c(Workspace = getwd(), Home = fs::path_home(), "R Installation" = R.home(), getVolumes()())
+  shinyFileSave(input, "save", roots = volumes, session = session, restrictions = system.file(package = "base"))
+  fileinfo <- parseSavePath(volumes, input$save)
+  if (nrow(fileinfo) > 0) {
+    saveDataAsXlsx(dataList, as.character(fileinfo$datapath))
+  }
+    })
+  
+  observe({
+    volumes <- c(Workspace = getwd(), Home = fs::path_home(), "R Installation" = R.home(), getVolumes()())
+    shinyFileSave(input, "Save_rData", roots = volumes, session = session, restrictions = system.file(package = "base"))
+    fileinfo <- parseSavePath(volumes, input$save)
+    if (nrow(fileinfo) > 0) {
+      saveDataAsR(dataList, colorChoices, colorSelected, selectedColors, seriesList,as.character(fileinfo$datapath))
+    }
+  })
+  
+  observeEvent(input$Load_Rdata, {
+    dataList <<- c(dataList, data_list)
+    colorChoices <<- color_Choices
+    colorSelected <<- color_Selected
+    selectedColors <<- selected_Colors
+    seriesList <<- series_List
+    
+    
+    updatePickerInput(
+      session = session,
+      inputId = "pickerSeries",
+      choices = names(dataList),
+      selected =  names(dataList)[1]
+    )
+    
+    updateSelectInput(
+      session = session,
+      inputId = "seriesPickerKineticsView",
+      choices = names(dataList),
+      selected =  names(dataList)[1]
+    )
+    
+    updatePickerInput(
+      session = session,
+      inputId = "seriesPickerCalculations",
+      choices = names(dataList),
+      selected =  names(dataList)[1]
+    )
+    
+    updateCurSpecKineticsView(seriesName)
+    updateMeasurementPickerMedianView(session)
+    updateMeasurementPickerStatisticView(session)
+    
+    updateSelectizeInput(
+      inputId = "overlayPlot_colors",
+      choices = colorChoices$Median,
+      selected = colorSelected$Median
+    )
+    
+    updateSelectizeInput(
+      inputId = "StatisticPlot_colors",
+      choices = colorChoices$Statistic,
+      selected = colorSelected$Statistic
+    )
+      
+      
+  })
   ####
+  
   if (!interactive()) {
     session$onSessionEnded(function() {
       stopApp()
       q("no")
     })
   }
+  
 })
 
 
@@ -789,7 +875,7 @@ extractMeasIndex <- function(measNames) {
 
 createKineticPlot <-
   function(plotDataFrame,
-           pTitle = "Plot",
+           pTitle = "",
            pTheme = theme_prism(),
            pThemeOver = theme_few(),
            style =  "Overlayed",
@@ -832,11 +918,10 @@ createKineticPlot <-
 
 
 createOverlayPlot <- function(plotDataFrame,
-                              pTitle = "Plot",
+                              pTitle = "",
                               pTheme = theme_prism(),
                               pThemeOver = theme_few(),
                               style =  "Overlayed",
-                              colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)]),
                               currSpec = NULL,
                               lineSize = 1) {
   
@@ -847,14 +932,14 @@ createOverlayPlot <- function(plotDataFrame,
       ggplot(plotDataFrame)   +
       geom_ribbon(aes(x = Time, ymin = Median + SD, ymax = Median, fill = Measurement),alpha = 0.3) +
       geom_line(aes(x = Time, y = Median, color = Measurement), linewidth = lineSize ) + pTheme + ggtitle(pTitle) +
-      ylab("Percentage of Max. Cur") + xlab("Time (s)")
+      ylab("Percentage of Max. Curr.") + xlab("Time (s)")
   }
   if(currSpec == "OutwardCurr") {
     overlayPlot <-
       ggplot(plotDataFrame)   +
       geom_ribbon(aes(x = Time, ymin = Median - SD, ymax = Median, fill = Measurement),alpha = 0.3) +
       geom_line(aes(x = Time, y = Median, color = Measurement), linewidth = lineSize) + pTheme + ggtitle(pTitle) + 
-      ylab("Percentage of Max. Cur") + xlab("Time (s)")
+      ylab("Percentage of Max. Curr.") + xlab("Time (s)")
   }
   
   if (style == "Single"){
@@ -917,10 +1002,12 @@ combineListtoWide <- function(data_list) {
   
   combined_data_list <- bind_cols(pad_data, .name_repair = "universal_quiet")
   
-  names_list <- rep(names(data_list), each = 3)
-  names_df  <- colnames(data_list[[1]])
-  namesComb <- paste0(names_list,".",names_df)
-  colnames(combined_data_list) <- namesComb
+bind_cols(x$peakTimeData, .name_repair = "universal_quiet")
+names_list <- rep(names(x$peakTimeData), each = 2)
+names_df  <- colnames(x$peakTimeData[[1]])
+namesComb <- paste0(names_list,".",names_df)
+colnames(combined_data_list) <- namesComb
+combined_data_list
   
   return(combined_data_list)
 }
@@ -1240,7 +1327,6 @@ createPeakStatisticPlot <- function(peak_data_frame,
                                     pTheme = theme_prism(),
                                     pThemeOver = theme_few(),
                                     style =  "Overlayed",
-                                    colorList = c("#000000", palette_pander(8)[c(2, 4, 8, 6, 5, 1, 3, 7)]),
                                     lineSize = 1) {
   if(nrow(peak_data_frame) == 0) return(ggplot())
   
@@ -1269,7 +1355,8 @@ geom = "errorbar",width = 0.3, linewidth = lineSize) +
         ncol = 10,
       ) + pThemeOver
   }
-  
+ 
+  return(statPlot)
 }
 
 colorPlot <- function(origPlot, colors){
@@ -1280,13 +1367,61 @@ colorPlot <- function(origPlot, colors){
 
 changeAxisLims <- function(origPlot, xALims, xBreaks, yALims, yBreaks){
   # newPlot <- origPlot + coord_cartesian(xALims, yALims, expand = F)
+  
+  if (!is.null(xBreaks))  xBreaks <- as.numeric(str_split_1(xBreaks,","))
+  yBreaks <- as.numeric(str_split_1(yBreaks,","))
+  
+  
+  if (any(is.na(yBreaks))) {
+    yBreaks <- pretty_breaks(n = 4)
+  }
+  if (any(is.na(xBreaks))) {
+    xBreaks <- pretty_breaks(n = 4)
+  }
+  
+  if (is.null(xALims)) {
+    newPlot <- origPlot + 
+      scale_y_continuous(breaks = yBreaks, limits = yALims, expand = c(0,0))
+    return(newPlot)
+  }
+  
   newPlot <- origPlot + 
-    scale_y_continuous(breaks = c(yBreaks), limits = yALims, expand = c(0,0)) +
-    scale_x_continuous(breaks = c(xBreaks), limits = xALims, expand = c(0,0))
+    scale_y_continuous(breaks = yBreaks, limits = yALims, expand = c(0,0)) +
+    scale_x_continuous(breaks = xBreaks, limits = xALims, expand = c(0,0))
   return(newPlot)
 }
 
 changeFontSize <- function(origPlot, fontSize) {
-  newPlot <- origPlot + theme(text = element_text(size = 12 ))
+  newPlot <- origPlot + theme(text = element_text(size = fontSize))
                               return(newPlot)
+}
+
+customizePlot <- function(origPlot, colors, xALims, xBreaks, yALims, yBreaks, fontSize) {
+  finalPlot <- origPlot %>%
+    colorPlot(colors) %>%
+    changeAxisLims(xALims, xBreaks, yALims, yBreaks) %>%
+    changeFontSize(fontSize)
+  return(finalPlot)
+}
+
+saveDataAsR <- function(data_list, color_Choices, color_Selected, selected_Colors, series_List, fileName) {
+  save(data_list, color_Choices, color_Selected, selected_Colors, series_List, file = fileName)
+}
+
+saveDataAsXlsx <- function(data_list, fileName) {
+  wb = createWorkbook()
+  walk(names(data_list), \(x) addWorksheet(wb, paste0("Kin_",x)))
+  walk2(data_list, names(data_list), \(x,y) writeDataTable(wb,paste0("Kin_",y), cbind(x$medianData,combineListtoWide(x$normalizedStackedData))))
+ 
+  walk(names(data_list), \(x) addWorksheet(wb, paste0("Ttp_",x)))
+  walk2(data_list, names(data_list), \(x,y) writeDataTable(wb,paste0("Ttp_",y), {
+    combined_data_list <- bind_cols(x$peakTimeData, .name_repair = "universal_quiet")
+    names_list <- rep(names(x$peakTimeData), each = 2)
+    names_df  <- colnames(x$peakTimeData[[1]])
+    namesComb <- paste0(names_list,".",names_df)
+    colnames(combined_data_list) <- namesComb
+    combined_data_list
+  }
+    ))
+  saveWorkbook(wb, fileName, overwrite = TRUE)
 }

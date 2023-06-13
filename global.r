@@ -34,6 +34,8 @@ library(fontawesome)
 library(tidyr)
 library(latex2exp)
 library(ggpubr)
+
+
 isDataImported <- FALSE
 isCalculated <- FALSE
 dataList <- list()
@@ -44,5 +46,5 @@ colorPalette <- c("#000000", "#0072B2", "#009E73",
 colorChoices <-  list(Median = colorPalette, Statistic = colorPalette)
 colorSelected <-  list(Median = colorPalette, Statistic = colorPalette)
 selectedColors <- list(Median = c(), Statistic = c())
-seriesList <- c()
+seriesList <- list(all = c(), Median = c(), Statistic = c())
                      

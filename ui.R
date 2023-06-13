@@ -173,8 +173,10 @@ body <- dashboardBody(
         solidHeaderBoxes$Blue(
           title = "Export Data",
           width = 2,
-          actionButton("Save_xlsx", "Save .xlsx", icon = icon("file-excel")),
-          actionButton("Save_rData", "Save Rdata", icon = icon("r-project"))
+          actionButton("Save_rData", "Save Rdata", icon = icon("r-project")),
+          shinySaveButton("save", "Save as .xlsx", "Save file as...", filetype=list(xlsx="xlsx"), viewtype = "icon",icon = icon("file-excel")),
+          shinySaveButton("Save_rData", "Save as .rData", "Save file as...", filetype=list(rData=".rData"), viewtype = "icon",icon = icon("r-project"))
+          
         ),
         solidHeaderBoxes$Blue(
           title = "Workspace",
@@ -462,7 +464,7 @@ body <- dashboardBody(
                     numericRangeInput(
                       inputId = "rangeYlimsOverlayPlot",
                       label = "Y-Axis",
-                      value = c(0, 100),
+                      value = c(-200, 200),
                       min = -10000,
                       max = 10000
                     ),
@@ -591,27 +593,14 @@ body <- dashboardBody(
                   width = 2,
                   dropdownButton(
                     numericRangeInput(
-                      inputId = "rangeXlimsStatisticPlot",
-                      label = "X-Axis",
-                      value = c(0, 10),
-                      min = -10000,
-                      max = 10000
-                    ),
-                    textInput(
-                      inputId =  "XaxisBreaksStatistic",
-                      label = "Ticks X-Axis",
-                      placeholder = "Enter comma seperated values"
-                    )
-                    ,
-                    numericRangeInput(
                       inputId = "rangeYlimsStatisticPlot",
                       label = "Y-Axis",
-                      value = c(0, 100),
+                      value = c(-5, 110),
                       min = -10000,
                       max = 10000
                     ),
                     textInput(
-                      inputId = "YaxisBreaksStatistic",
+                      inputId = "YaxisBreaksStatisticPlot",
                       label =  "Ticks Y-Axis",
                       placeholder = "Enter comma seperated values"
                     )
