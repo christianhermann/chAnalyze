@@ -712,7 +712,8 @@ createPeakStatisticPlot <- function(peak_data_frame,
 
 colorPlot <- function(origPlot, colors){
   newPlot <- origPlot + 
-    scale_color_manual(values = colors, aesthetics = c("colour", "fill"))
+             scale_fill_manual(values = colors) + 
+             scale_color_manual(values = colors)  
   return(newPlot)
 }
 

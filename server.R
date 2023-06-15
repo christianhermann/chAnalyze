@@ -574,7 +574,7 @@ shinyServer(function(input, output, session) {
     colorList <- colorSelected$Median
     if(input$overlayPlot_switchColors == TRUE) colorList <- input$overlayPlot_colorsText
     style <- input$curMedianStyle
-    median_list <- map(dataList, \(x) x$medianData)
+    median_list <- map(data_list, \(x) x$medianData)
     combined_dataframe <- combineListtoLong(median_list)
     xALims <- input$rangeXlimsOverlayPlot
     xBreaks <- input$XaxisBreaks
@@ -585,6 +585,9 @@ shinyServer(function(input, output, session) {
     
     newPlot <- createOverlayPlot(combined_dataframe, currSpec = currSpec, style = style, lineSize = lineSize)
     finalPlot <- customizePlot(newPlot, colorList, xALims, xBreaks, yALims, yBreaks, fontSize)
+    
+    if(input$overlayPlotLegend == 0) finalPlot <- finalPlot + theme(legend.position = "none")
+    
     return(finalPlot)
   }
   
@@ -647,11 +650,13 @@ shinyServer(function(input, output, session) {
     yBreaks <- input$YaxisBreaksStatisticPlot
     fontSize <- input$fontSizeStatisticPlot
     lineSize <- input$lineSizeStatisticPlot
-    combined_dataframe <- combinePeakTimeList(dataList)
+    combined_dataframe <- combinePeakTimeList(data_list)
     
     newPlot <- createPeakStatisticPlot(combined_dataframe, lineSize = lineSize)
     
     finalPlot <- customizePlot(newPlot, colorList, xALims, xBreaks, yALims, yBreaks, fontSize)
+    
+    if(input$StatisticPlotLegend == 0) finalPlot <- finalPlot + theme(legend.position = "none")
     return(finalPlot)
   }
   

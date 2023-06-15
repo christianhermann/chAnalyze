@@ -1,3 +1,5 @@
+source("globalStuff.r")
+
 #### Factories and GUI Elements####
 solidHeaderBoxFactory <-
   function(color, ...) {
@@ -498,7 +500,7 @@ body <- dashboardBody(
                       inputId = "overlayPlotLegend",
                       label_on = "Legend in plot!",
                       label_off = "No legend in plot!",
-                      value = FALSE,
+                      value = TRUE,
                       outline = TRUE,
                       plain = TRUE,
                       icon_on = icon("thumbs-up"),
@@ -629,7 +631,7 @@ body <- dashboardBody(
                       inputId = "StatisticPlotLegend",
                       label_on = "Legend in plot!",
                       label_off = "No legend in plot!",
-                      value = FALSE,
+                      value = TRUE,
                       outline = TRUE,
                       plain = TRUE,
                       icon_on = icon("thumbs-up"),
