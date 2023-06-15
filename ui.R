@@ -970,8 +970,11 @@ body <- dashboardBody(
 
 
 ##### Header#####
-header <- dashboardHeader(title = span("Chanalyze"),
-                          titleWidth  = 200)
+header <- dashboardHeader(title = span(
+  "Chanalyze",
+  tags$img(src="Chanalyze.png", width = '20%')),
+  titleWidth  = 200)
+#####
 #####
 
 
