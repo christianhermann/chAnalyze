@@ -157,26 +157,27 @@ body <- dashboardBody(
           actionButton("Import_Data",
                        "Import Measurements",
                        icon = icon("floppy-disk")),
-          actionButton(
-            "Load_Rdata",
-            " Load Rdata",
-            icon = icon("r-project", fill = "steelblue")
-          ),
+            shinyFilesButton('Load_rData', 'Load rData file', 'Please select a file', FALSE, icon = icon("r-project", fill = "steelblue")),
           hr(),
           withLoader(
             textOutput("StatusDataImport"),
-            proxy.height = 20,
+            proxy.height = "120px",
             type = "image",
             loader = "LoadingChannel.gif"
           )
         ),
         solidHeaderBoxes$Blue(
           title = "Export Data",
-          width = 2,
-          actionButton("Save_rData", "Save Rdata", icon = icon("r-project")),
+          width = 3,
           shinySaveButton("save", "Save as .xlsx", "Save file as...", filetype=list(xlsx="xlsx"), viewtype = "icon",icon = icon("file-excel")),
-          shinySaveButton("Save_rData", "Save as .rData", "Save file as...", filetype=list(rData=".rData"), viewtype = "icon",icon = icon("r-project"))
-          
+          shinySaveButton("Save_rData", "Save as .rData", "Save file as...", filetype=list(rData=".rData"), viewtype = "icon",icon = icon("r-project")),
+          hr(),
+          withLoader(
+            textOutput("StatusDataExport"),
+            proxy.height = "120px",
+            type = "image",
+            loader = "LoadingChannel.gif"
+          )
         ),
         solidHeaderBoxes$Blue(
           title = "Workspace",
@@ -212,7 +213,8 @@ body <- dashboardBody(
         # Add OK/Cancel buttons to the modal dialog
         footer = tagList(
           modalButton("Cancel"),
-          actionButton("okBtn", "OK", class = "btn-primary"),
+          #actionButton("okBtn", "OK", class = "btn-primary"),
+          shinyFilesButton('okBtn', 'Ok', 'Please select files',multiple = TRUE),
           tags$head(tags$style(
             "#importDataModal .modal-footer{ display:none}"
           ))
@@ -300,7 +302,7 @@ body <- dashboardBody(
                        )
                      )),
               column(
-                width = 2,
+                width = 4,
                 solidHeaderBoxes$Blue(
                   title = "Status",
                   width = 12,
@@ -931,7 +933,35 @@ body <- dashboardBody(
           )
         )
       )
+    ),
+    tabItem(
+      "SettingsOther",
+      fluidRow(
+        column(
+          width = 4,
+          solidHeaderBoxes$Blue(
+            title = "Other",
+            radioGroupButtons(
+              inputId = "WithInact",
+              label = "Kinetic has:",
+              choiceNames  = c("Activation & Inactivation", 
+                          "Activation"),
+              choiceValues = c(1,0), 
+              selected = 1,
+              direction = "vertical",
+              status = "primary",
+              checkIcon = list(
+                yes = icon("ok", 
+                           lib = "glyphicon"),
+                no = icon("remove",
+                          lib = "glyphicon"))
+            )
+            )
+        )
+      )
     )
+            
+            
   )
 )
 
