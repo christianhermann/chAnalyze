@@ -1,7 +1,7 @@
 Installation:
 1.Installation with setupfile:
 *	detectIVe2: setup_DetectIVe 2.exe
-*	Chanalyze: 
+*	Chanalyze: setup_Chanalyze.exe
 *	Installation should be done either by each user in a private folder e.g. 
 (C:\Users\Chris\Documents\DetectIVe 2) or through an administrator. 
 *	Ignore the error message which says IPersistFile::Save failed; code 0x8007005
