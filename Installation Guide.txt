@@ -1,0 +1,10 @@
+Installation:
+1.Installation with setupfile:
+*	detectIVe2: setup_DetectIVe 2.exe
+*	Chanalyze: 
+*	Installation should be done either by each user in a private folder e.g. 
+(C:\Users\Chris\Documents\DetectIVe 2) or through an administrator. 
+*	Ignore the error message which says IPersistFile::Save failed; code 0x8007005
+2. Download and install R 4.2.3. 
+*	https://ftp.fau.de/cran/bin/windows/base/old/4.2.3/R-4.2.3-win.exe
+3. •	Launch the installed program. The first startup can be very slow.
