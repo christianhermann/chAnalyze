@@ -483,6 +483,14 @@ shinyServer(function(input, output, session) {
     if(all(dim(kineticPlot$data) == c(0,0))) kineticPlot = ggplot()
     return(kineticPlot)
   }
+  
+  output$measInfo <- renderUI(getInfo())
+  getInfo <- function() {
+    settings_list <- dataList[[input$seriesPickerKineticsView]]$settings
+    settings_list <- settings_list[1:3]
+    text <- HTML(paste0("<h4>Smoothing Algorithm:<//h4> <br>", settings_list$smoothingAlgo, "<h4>Parameters:<//h4> <br>", settings_list$smoothingParam))
+    return(text)
+  }
   ###
   updateCurSpecKineticsView <- function(series) {
     curSpec <-
@@ -575,6 +583,8 @@ shinyServer(function(input, output, session) {
     if(input$overlayPlot_switchColors == TRUE) colorList <- input$overlayPlot_colorsText
     style <- input$curMedianStyle
     median_list <- map(data_list, \(x) x$medianData)
+    curSpecs <- map(data_list,\(x) getSettings(x, "currentSpec"))
+    if(input$overlayPlotNorming == 1) median_list <- map2(median_list, curSpecs, \(x,y) normalize_median_data(x,y))
     combined_dataframe <- combineListtoLong(median_list)
     xALims <- input$rangeXlimsOverlayPlot
     xBreaks <- input$XaxisBreaks
@@ -782,6 +792,8 @@ shinyServer(function(input, output, session) {
           choices = colorChoices$Statistic,
           selected = colorSelected$Statistic
         )
+        
+        
         isDataImported <<- TRUE
         sendSweetAlert(
           session = session,

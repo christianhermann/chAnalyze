@@ -316,6 +316,9 @@ body <- dashboardBody(
             )),
     tabItem("KineticsView",
             fluidPage(
+              fluidRow(
+                column(
+                  width = 2,
               dropdownButton(
                 selectInput(
                   inputId = "seriesPickerKineticsView",
@@ -376,6 +379,17 @@ body <- dashboardBody(
                 icon = icon("list-check"),
                 
                 tooltip = tooltipOptions(title = "Click to change inputs !")
+              )
+              ),
+              column(
+                width = 3,
+                dropdownButton(
+                  uiOutput("measInfo"),
+                  icon = icon("info"),
+                  tooltip = tooltipOptions(title = "Click to series information !")
+                  
+              )
+              )
               ),
               fluidRow(
                 column(
@@ -495,6 +509,17 @@ body <- dashboardBody(
                           value = 12
                         )
                       )
+                    ),
+                    prettyToggle(
+                      inputId = "overlayPlotNorming",
+                      label_on = "Medians will be normed!",
+                      label_off = "Median stay raw!",
+                      value = TRUE,
+                      outline = TRUE,
+                      plain = TRUE,
+                      icon_on = icon("thumbs-up"),
+                      icon_off = icon("thumbs-down"),
+                      bigger = TRUE
                     ),
                     prettyToggle(
                       inputId = "overlayPlotLegend",
@@ -757,7 +782,7 @@ body <- dashboardBody(
                 numericInput(
                   inputId = "smoothingSplineSpar",
                   label = "spar",
-                  value = 0.5,
+                  value = 0.45,
                   min = 0,
                   max = 1
                 )

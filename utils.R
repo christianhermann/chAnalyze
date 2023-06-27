@@ -498,6 +498,34 @@ normalize_data_with_Info_wo_Inakt <- function(data_list, columnSpec, normInfo) {
   return(data_list)
 }
 
+normalize_median_data <- function(median_data, columnSpec) {
+  values <- median_data$Median
+  if (columnSpec == "InwardCurr") {values <- values * -1}
+  smoothValues <- runmed(values, length(values)/10, na.action = "+Big_alternate")
+  valuesSD <- median_data$SD
+  max_norm_Index <- which.max(smoothValues)
+  
+  max_value <- values[max_norm_Index]
+
+  min_valueAkt <- values[which.min(smoothValues[1:max_norm_Index])]
+  min_valueInakt <- values[max_norm_Index + which.min(smoothValues[max_norm_Index:length(values)])]
+
+  if (columnSpec == "InwardCurr") {
+    newVal <-  -100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+    newVal <- c(newVal[-1], -100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+
+  } else if (columnSpec == "OutwardCurr") {
+    newVal <- 100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+    newVal <- c(newVal[-1], 100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+  }
+  newSD <- abs(newVal[max_norm_Index]/values[max_norm_Index]) * valuesSD
+
+  median_data$Median <- newVal
+  median_data$SD <- newSD
+  return(median_data)
+}
+
+
 smooth_data <- function(data, smoothingSpec, columnSpec, ...) {
   
   smoothed_data <- data
