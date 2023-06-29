@@ -43,7 +43,9 @@ create_app(
     "tidyr",
     "latex2exp",
     "ggpubr",
-    "magrittr"
+    "magrittr",
+    "rvg",
+    "officer"
   ),
   user_browser = "electron"
 )
