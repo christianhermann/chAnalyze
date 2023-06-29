@@ -77,7 +77,7 @@ colorBox <- function(name)
           textInput(
             inputId = paste0(name,"Plot_colorsText"),
             NULL,
-            value = c("#000000", "#0072B2", "#009E73", "#D55E00", "#56B4E9" ,"#F0E442", "#CC79A7", "#999999", "#E69F00")
+            value = c("#000000,#0072B2,#009E73,#D55E00,#56B4E9,#F0E442,#CC79A7,#999999,#E69F00")
           )
         ),
         column(
@@ -965,10 +965,13 @@ body <- dashboardBody(
       "SettingsOther",
       fluidRow(
         column(
-          width = 4,
+          width = 10,
           solidHeaderBoxes$Blue(
             title = "Other",
-            radioGroupButtons(
+            fluidRow(
+            column(
+              width = 6,
+              radioGroupButtons(
               inputId = "WithInact",
               label = "Kinetic has:",
               choiceNames  = c("Activation & Inactivation", 
@@ -982,6 +985,26 @@ body <- dashboardBody(
                            lib = "glyphicon"),
                 no = icon("remove",
                           lib = "glyphicon"))
+            )
+            ),
+            column(
+              width = 6,
+            radioGroupButtons(
+              inputId = "WithSteepPeak",
+              label = "Kinetic is:",
+              choiceNames  = c("Normal", 
+                               "with a very sharp and steep peak"),
+              choiceValues = c(1,0), 
+              selected = 1,
+              direction = "vertical",
+              status = "primary",
+              checkIcon = list(
+                yes = icon("ok", 
+                           lib = "glyphicon"),
+                no = icon("remove",
+                          lib = "glyphicon"))
+            )
+            )
             )
             )
         )

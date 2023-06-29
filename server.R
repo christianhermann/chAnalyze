@@ -40,11 +40,13 @@ shinyServer(function(input, output, session) {
     wddir <- choose.dir()
     if (!is.na(wddir))
       setwd(wddir)
+    volumes <<- c(Workspace = getwd(), Home = fs::path_home(), "R Installation" = R.home(), getVolumes()())
     
     output$Workspace <- renderText({
       getwd()
     })
-  })
+  },ignoreInit = TRUE)
+  
   ####DataEditor####
   
   data_to_edit <- reactiveVal(data.frame(10, 10))
@@ -259,13 +261,13 @@ shinyServer(function(input, output, session) {
   ####Calculations####
   observeEvent(input$calculateSeries, {
     calculateFunction(input$seriesPickerCalculations)
-  })
+  },ignoreInit = TRUE)
   
   observeEvent(input$calculateAllSeries, {
     #  map(seriesList$all, calculateFunction)
       calculateFunction(seriesList$all)
-  })
-  
+  }, ignoreInit = TRUE)
+
   isolate({
     calculateFunction <- function(series_List) {
       isCalculated <<- FALSE
@@ -346,14 +348,15 @@ shinyServer(function(input, output, session) {
   calculateNorming <- function(series, data_temp, normInfo = NULL) {
     data_list <- dataList[[series]][[data_temp]]
     columnSpec <- getSettings(dataList[[series]], "currentSpec")
+    withoutSteepPeak <- as.numeric(input$WithSteepPeak)
     
     if(input$WithInact == 1) {
       if(is.null(normInfo)) data_list <- map(data_list, \(x) normalize_data(x, columnSpec))
-      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info(x, columnSpec, y))
+      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info(x, columnSpec, y, withoutSteepPeak))
     }
     if(input$WithInact == 0) {
       if(is.null(normInfo)) data_list <- map(data_list, \(x) normalize_data_wo_Inakt(x, columnSpec))
-      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info_wo_Inakt(x, columnSpec, y))
+      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info_wo_Inakt(x, columnSpec, y, withoutSteepPeak))
     }
     
     return(data_list)
@@ -473,7 +476,7 @@ shinyServer(function(input, output, session) {
     if(style != "Median")     combinedList <- combineListtoLong(data_list)
     if(style == "Median") {   
       combinedList  <- calcKineticMedian(data_list)
-      dataList[[input$seriesPickerKineticsView]][["medianData"]] <<- combinedList    }
+      dataList[[input$seriesPickerKineticsView]][["medianData"]] <<- combinedList}
     kineticPlot <-
       createKineticPlot(combinedList, style =style,
                         pTitle = paste0(input$seriesPickerKineticsView,
@@ -486,7 +489,9 @@ shinyServer(function(input, output, session) {
   
   output$measInfo <- renderUI(getInfo())
   getInfo <- function() {
-    settings_list <- dataList[[input$seriesPickerKineticsView]]$settings
+    selPicker <- input$seriesPickerKineticsView
+    selList <- dataList[[selPicker]]
+    settings_list <- selList$settings
     settings_list <- settings_list[1:3]
     text <- HTML(paste0("<h4>Smoothing Algorithm:<//h4> <br>", settings_list$smoothingAlgo, "<h4>Parameters:<//h4> <br>", settings_list$smoothingParam))
     return(text)
@@ -577,10 +582,10 @@ shinyServer(function(input, output, session) {
     data_list <- choseSelectedList(dataList,
                                    input$measurementPickerMedianView)
     
-    seriesList$Median <- input$measurementPickerMedianView 
+    seriesList$Median <<- input$measurementPickerMedianView 
     
     colorList <- colorSelected$Median
-    if(input$overlayPlot_switchColors == TRUE) colorList <- input$overlayPlot_colorsText
+    if(input$overlayPlot_switchColors == TRUE) colorList <- str_split_1(input$overlayPlot_colorsText,",")
     style <- input$curMedianStyle
     median_list <- map(data_list, \(x) x$medianData)
     curSpecs <- map(data_list,\(x) getSettings(x, "currentSpec"))
@@ -649,7 +654,7 @@ shinyServer(function(input, output, session) {
     currSpec <- input$curSpecStatisticView
     data_list <- choseSelectedList(dataList,
                                    input$measurementPickerStatisticView)
-    seriesList$Statistic <- input$measurementPickerStatisticView 
+    seriesList$Statistic <<- input$measurementPickerStatisticView 
     
     colorList <- colorSelected$Statistic
     if(input$StatisticPlot_switchColors == TRUE) colorList <- input$StatisticPlot_colorsText
@@ -725,7 +730,7 @@ shinyServer(function(input, output, session) {
       )
       })
     }
-  })
+  },ignoreInit = TRUE)
   
   observeEvent(input$Save_rData,{
     fileinfo <- parseSavePath(volumes, input$Save_rData)
@@ -741,7 +746,7 @@ shinyServer(function(input, output, session) {
       )
       })
     }
-  })
+  },ignoreInit = TRUE)
   
   ###Load R
   observeEvent(input$Load_rData,{
@@ -755,6 +760,12 @@ shinyServer(function(input, output, session) {
         colorSelected <<- color_Selected
         selectedColors <<- selected_Colors
         seriesList <<- series_List
+        
+        updateSelectizeInput(
+          session = session,
+          inputId = "newMeasName",
+          choices = seriesList
+        )
         
         updatePickerInput(
           session = session,
@@ -818,7 +829,7 @@ shinyServer(function(input, output, session) {
         })
       })
     }
-  })
+  },ignoreInit = TRUE)
 
 ####
 

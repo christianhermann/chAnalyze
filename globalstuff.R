@@ -33,6 +33,8 @@ library(tidyr)
 library(latex2exp)
 library(ggpubr)
 library(magrittr)
+library(rvg)
+library(officer)
 
 source("utils.R")
 isDataImported <- FALSE
