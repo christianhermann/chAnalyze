@@ -958,7 +958,36 @@ body <- dashboardBody(
               )
             )
           )
+        ),
+        column(
+          width = 2,
+          solidHeaderBoxes$Blue(
+            title = "Norming",
+            width = 12,
+            HTML("<b>Norm data between:</b>"),
+            fluidRow(
+              column(6,
+              numericInput(
+                "normMin",
+                label = NULL,
+                value = 0,
+                min = 0,
+                max = 10000
+              )
+                ),
+              column(6,
+              numericInput(
+                "normMax",
+                label = NULL,
+                value = 100,
+                min = 0,
+                max = 10000
+              )
+              )
+            )
+          )
         )
+        
       )
     ),
     tabItem(

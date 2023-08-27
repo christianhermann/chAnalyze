@@ -246,6 +246,7 @@ calcKineticMedian <- function(data_list, currSpec) {
   
   median <- createRowMedian(data_list[,-1])
   SD <- createRowSD(data_list[,-1])
+  if(any(class(data_list) == "array")) data_list <- data.frame(data_list)
   medianDF <- data.frame(Time = data_list$Time, Median = median, SD = SD)
   return(medianDF)
 }
@@ -281,7 +282,7 @@ createRowSD <- function(data_frame) {
   return(rowMads(as.matrix(data_frame), na.rm = TRUE))
 }
 
-normalize_data <- function(data_list, columnSpec) {
+normalize_data <- function(data_list, columnSpec, dataNormMin, dataNormMax) {
   
   # Normalize the specified column(s) within the desired range
   if (is.character(columnSpec)) {
@@ -301,13 +302,13 @@ normalize_data <- function(data_list, columnSpec) {
       stop("All values in the column are the same!")
     }
     if (columnSpec == "InwardCurr") {
-      newVal <-  -100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
-      newVal <- c(newVal[-1], -100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      newVal <-  dataNormMin + (-(dataNormMax - dataNormMin) * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt))
+      newVal <- c(newVal[-1], dataNormMin + (-(dataNormMax - dataNormMin) * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt)))
       data_list[[columnSpec]] <- newVal
       
     } else if (columnSpec == "OutwardCurr") {
-      newVal <- 100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
-      newVal <- c(newVal[-1], 100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      newVal <-  dataNormMin + (dataNormMax - dataNormMin) * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+      newVal <- c(newVal[-1], dataNormMin + (dataNormMax - dataNormMin) * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
       data_list[[columnSpec]] <- newVal }
   } else {
     # For "Both" column specification
@@ -322,8 +323,8 @@ normalize_data <- function(data_list, columnSpec) {
     inward_min_norm_Akt_Index <- which.min(inward_values[1:inward_max_norm_Index])
     inward_min_norm_Inakt_Index <- inward_max_norm_Index - 1 + which.min(inward_values[inward_max_norm_Index:length(inward_values)])
     
-    inward_newVal <- -100 * (inward_values[1:inward_max_norm_Index] - inward_min_valueAkt) / (inward_max_value - inward_min_valueAkt)
-    inward_newVal <- c(inward_newVal[-1], -100 * (inward_values[inward_max_norm_Index:length(inward_values)] - inward_min_valueInakt) / (inward_max_value - inward_min_valueInakt))
+    inward_newVal <- -dataNormMin + (-(dataNormMax - dataNormMin) * (inward_values[1:inward_max_norm_Index] - inward_min_valueAkt) / (inward_max_value - inward_min_valueAkt))
+    inward_newVal <- c(inward_newVal[-1], dataNormMin + (-(dataNormMax - dataNormMin) * (inward_values[inward_max_norm_Index:length(inward_values)] - inward_min_valueInakt) / (inward_max_value - inward_min_valueInakt)))
     
     outward_max_value <- max(outward_values)
     outward_max_norm_Index <- which.max(outward_values)
@@ -332,8 +333,8 @@ normalize_data <- function(data_list, columnSpec) {
     outward_min_norm_Akt_Index <- which.min(outward_values[1:outward_max_norm_Index])
     outward_min_norm_Inakt_Index <- outward_max_norm_Index - 1 + which.min(outward_values[outward_max_norm_Index:length(outward_values)])
     
-    outward_newVal <- -100 * (outward_values[1:outward_max_norm_Index] - outward_min_valueAkt) / (outward_max_value - outward_min_valueAkt)
-    outward_newVal <- c(outward_newVal[-1], 100 * (outward_values[outward_max_norm_Index:length(outward_values)] - outward_min_valueInakt) / (outward_max_value - outward_min_valueInakt))
+    outward_newVal <-  dataNormMin + (dataNormMax - dataNormMin) * (outward_values[1:outward_max_norm_Index] - outward_min_valueAkt) / (outward_max_value - outward_min_valueAkt)
+    outward_newVal <- c(outward_newVal[-1], dataNormMin + (dataNormMax - dataNormMin) * (outward_values[outward_max_norm_Index:length(outward_values)] - outward_min_valueInakt) / (outward_max_value - outward_min_valueInakt))
     
     data_list[["InwardCurr"]] <- inward_newVal
     data_list[["OutwardCurr"]] <- outward_newVal
@@ -351,7 +352,7 @@ normalize_data <- function(data_list, columnSpec) {
   return(list(data_list = data_list, normalizeIndices = normalizeIndices))
 }
 
-normalize_data_with_Info <- function(data_list, columnSpec, normInfo, withoutSteepPeak = 1) {
+normalize_data_with_Info <- function(data_list, columnSpec, normInfo, withoutSteepPeak = 1, dataNormMin, dataNormMax) {
   
   if (is.character(columnSpec)) {
     # For single column specification
@@ -367,13 +368,13 @@ normalize_data_with_Info <- function(data_list, columnSpec, normInfo, withoutSte
       stop("All values in the column are the same!")
     }
     if (columnSpec == "InwardCurr") {
-      newVal <-  -100 * (values[1:normInfo$max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
-      newVal <- c(newVal[-1], -100 * (values[normInfo$max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      newVal <-  dataNormMin + (-(dataNormMax - dataNormMin) * (values[1:normInfo$max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt))
+      newVal <- c(newVal[-1], dataNormMin + (-(dataNormMax - dataNormMin) * (values[normInfo$max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt)))
       data_list[[columnSpec]] <- newVal
       
     } else if (columnSpec == "OutwardCurr") {
-      newVal <- -100 * (values[1:normInfo$max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
-      newVal <- c(newVal[-1], 100 * (values[normInfo$max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+      newVal <- dataNormMin + (dataNormMax - dataNormMin) * (values[1:normInfo$max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+      newVal <- c(newVal[-1], dataNormMin + (dataNormMax - dataNormMin) * (values[normInfo$max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
       data_list[[columnSpec]] <- newVal }
   } else {
     # For "Both" column specification
@@ -387,8 +388,8 @@ normalize_data_with_Info <- function(data_list, columnSpec, normInfo, withoutSte
     inward_min_valueAkt <-inward_values[normInfo$inward_min_norm_Akt_Index]
     inward_min_valueInakt <-inward_values[normInfo$inward_min_norm_Inakt_Index]
     
-    inward_newVal <- -100 * (inward_values[1:normInfo$inward_max_norm_Index] - inward_min_valueAkt) / (inward_max_value - inward_min_valueAkt)
-    inward_newVal <- c(inward_newVal[-1], -100 * (inward_values[normInfo$inward_max_norm_Index:length(inward_values)] - inward_min_valueInakt) / (inward_max_value - inward_min_valueInakt))
+    inward_newVal <- dataNormMin + (-(dataNormMax - dataNormMin) * (inward_values[1:normInfo$inward_max_norm_Index] - inward_min_valueAkt) / (inward_max_value - inward_min_valueAkt))
+    inward_newVal <- c(inward_newVal[-1],dataNormMin + (-(dataNormMax - dataNormMin) * (inward_values[normInfo$inward_max_norm_Index:length(inward_values)] - inward_min_valueInakt) / (inward_max_value - inward_min_valueInakt)))
     
     outward_max_value <- outward_values[normInfo$outward_max_norm_Index]
     if (withoutSteepPeak == 1) outward_max_value <-  max(outward_values)
@@ -396,8 +397,8 @@ normalize_data_with_Info <- function(data_list, columnSpec, normInfo, withoutSte
     outward_min_valueAkt <- outward_values[normInfo$outward_min_norm_Akt_Index]
     outward_min_valueInakt <- outward_values[normInfo$outward_min_norm_Inakt_Index]
     
-    outward_newVal <- -100 * (outward_values[1:normInfo$outward_max_norm_Index] - outward_min_valueAkt) / (outward_max_value - outward_min_valueAkt)
-    outward_newVal <- c(outward_newVal[-1], 100 * (outward_values[normInfo$outward_max_norm_Index:length(outward_values)] - outward_min_valueInakt) / (outward_max_value - outward_min_valueInakt))
+    outward_newVal <- dataNormMin + (dataNormMax - dataNormMin) * (outward_values[1:normInfo$outward_max_norm_Index] - outward_min_valueAkt) / (outward_max_value - outward_min_valueAkt)
+    outward_newVal <- c(outward_newVal[-1], dataNormMin + (dataNormMax - dataNormMin) * (outward_values[normInfo$outward_max_norm_Index:length(outward_values)] - outward_min_valueInakt) / (outward_max_value - outward_min_valueInakt))
     
     data_list[["InwardCurr"]] <- inward_newVal
     data_list[["OutwardCurr"]] <- outward_newVal
@@ -405,7 +406,7 @@ normalize_data_with_Info <- function(data_list, columnSpec, normInfo, withoutSte
   return(data_list = data_list)
 }
 
-normalize_data_wo_Inakt <- function(data_list, columnSpec) {
+normalize_data_wo_Inakt <- function(data_list, columnSpec, dataNormMin, dataNormMax) {
   
   # Normalize the specified column(s) within the desired range
   if (is.character(columnSpec)) {
@@ -440,14 +441,14 @@ normalize_data_wo_Inakt <- function(data_list, columnSpec) {
     inward_min_value <- min(inward_values)
     inward_min_norm_Index <- which.min(inward_values)
     
-    inward_newVal <- -100 * (inward_values - inward_min_value) / (inward_max_value - inward_min_value)
+    inward_newVal <- dataNormMin + (-(dataNormMax - dataNormMin) * (inward_values - inward_min_value) / (inward_max_value - inward_min_value))
     
     outward_max_value <- max(outward_values)
     outward_max_norm_Index <- which.max(outward_values)
     outward_min_value <- min(outward_values)
     outward_min_norm_Index <- which.min(outward_values)
     
-    outward_newVal <- 100 * (outward_values - outward_min_value) / (outward_max_value - outward_min_value)
+    outward_newVal <- dataNormMin + (dataNormMax - dataNormMin) * (outward_values - outward_min_value) / (outward_max_value - outward_min_value)
     
     data_list[[columnSpec[1]]] <- inward_newVal
     data_list[[columnSpec[2]]] <- outward_newVal
@@ -463,7 +464,7 @@ normalize_data_wo_Inakt <- function(data_list, columnSpec) {
   return(list(data_list = data_list, normalizeIndices = normalizeIndices))
 }
 
-normalize_data_with_Info_wo_Inakt <- function(data_list, columnSpec, normInfo, withoutSteepPeak = 1) {
+normalize_data_with_Info_wo_Inakt <- function(data_list, columnSpec, normInfo, withoutSteepPeak = 1, dataNormMin, dataNormMax) {
   
   if (is.character(columnSpec)) {
     # For single column specification
@@ -495,14 +496,14 @@ normalize_data_with_Info_wo_Inakt <- function(data_list, columnSpec, normInfo, w
     
     inward_min_value <- inward_values[normInfo$inward_min_norm_Index]
     
-    inward_newVal <- -100 * (inward_values - inward_min_value) / (inward_max_value - inward_min_value)
+    inward_newVal <- dataNormMin + (-(dataNormMax - dataNormMin)  * (inward_values - inward_min_value) / (inward_max_value - inward_min_value))
     
     outward_max_value <- outward_values[normInfo$outward_max_norm_Index]
     if (withoutSteepPeak == 1) outward_max_value <-  max(outward_values)
     
     outward_min_value <- outward_values[normInfo$outward_min_norm_Index]
     
-    outward_newVal <- 100 * (outward_values - outward_min_value) / (outward_max_value - outward_min_value)
+    outward_newVal <- dataNormMin + (dataNormMax - dataNormMin) * (outward_values - outward_min_value) / (outward_max_value - outward_min_value)
     
     data_list[[columnSpec[1]]] <- inward_newVal
     data_list[[columnSpec[2]]] <- outward_newVal
@@ -511,25 +512,25 @@ normalize_data_with_Info_wo_Inakt <- function(data_list, columnSpec, normInfo, w
   return(data_list)
 }
 
-normalize_median_data <- function(median_data, columnSpec) {
+normalize_median_data <- function(median_data, columnSpec, dataNormMin, dataNormMax) {
   values <- median_data$Median
   if (columnSpec == "InwardCurr") {values <- values * -1}
   smoothValues <- runmed(values, length(values)/10, na.action = "+Big_alternate")
   valuesSD <- median_data$SD
   max_norm_Index <- which.max(smoothValues)
   
-  max_value <- values[max_norm_Index]
+  max_value <- smoothValues[max_norm_Index]
 
-  min_valueAkt <- values[which.min(smoothValues[1:max_norm_Index])]
-  min_valueInakt <- values[max_norm_Index - 1 + which.min(smoothValues[max_norm_Index:length(values)])]
+  min_valueAkt <- smoothValues[which.min(smoothValues[1:max_norm_Index])]
+  min_valueInakt <- smoothValues[max_norm_Index - 1 + which.min(smoothValues[max_norm_Index:length(values)])]
 
   if (columnSpec == "InwardCurr") {
-    newVal <-  -100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
-    newVal <- c(newVal[-1], -100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+    newVal <-  dataNormMin + (-(dataNormMax - dataNormMin) * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt))
+    newVal <- c(newVal[-1],  dataNormMin + (-(dataNormMax - dataNormMin) * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt)))
 
   } else if (columnSpec == "OutwardCurr") {
-    newVal <- 100 * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
-    newVal <- c(newVal[-1], 100 * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
+    newVal <- dataNormMin + (dataNormMax - dataNormMin) * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt)
+    newVal <- c(newVal[-1], dataNormMin + (dataNormMax - dataNormMin) * (values[max_norm_Index:length(values)] - min_valueInakt) / (max_value - min_valueInakt))
   }
   newSD <- abs(newVal[max_norm_Index]/values[max_norm_Index]) * valuesSD
 
@@ -708,6 +709,7 @@ combinePeakTimeList <- function(data_list) {
   
   list_peak<- map2(list_peak, names(data_list), \(x,y) choseSelectedList(x,
                                                                   data_list[[y]]$settings$selectedMeas))
+  
   peak_list <- map(list_peak, \(x) {
     data_frame <- cbind(Marker = x[[1]]$Marker, map_df(x, \(y) y$Time)) 
     return(pivot_longer(data_frame,-Marker))})

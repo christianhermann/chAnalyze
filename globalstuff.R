@@ -35,6 +35,7 @@ library(ggpubr)
 library(magrittr)
 library(rvg)
 library(officer)
+library(svglite)
 
 source("utils.R")
 isDataImported <- FALSE

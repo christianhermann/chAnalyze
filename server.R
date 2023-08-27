@@ -348,15 +348,18 @@ shinyServer(function(input, output, session) {
   calculateNorming <- function(series, data_temp, normInfo = NULL) {
     data_list <- dataList[[series]][[data_temp]]
     columnSpec <- getSettings(dataList[[series]], "currentSpec")
+    dataNormMin <- input$normMin
+    dataNormMax <- input$normMax
+    
     withoutSteepPeak <- as.numeric(input$WithSteepPeak)
     
     if(input$WithInact == 1) {
-      if(is.null(normInfo)) data_list <- map(data_list, \(x) normalize_data(x, columnSpec))
-      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info(x, columnSpec, y, withoutSteepPeak))
+      if(is.null(normInfo)) data_list <- map(data_list, \(x) normalize_data(x, columnSpec, dataNormMin, dataNormMax))
+      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info(x, columnSpec, y, withoutSteepPeak, dataNormMin, dataNormMax))
     }
     if(input$WithInact == 0) {
-      if(is.null(normInfo)) data_list <- map(data_list, \(x) normalize_data_wo_Inakt(x, columnSpec))
-      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info_wo_Inakt(x, columnSpec, y, withoutSteepPeak))
+      if(is.null(normInfo)) data_list <- map(data_list, \(x) normalize_data_wo_Inakt(x, columnSpec, dataNormMin, dataNormMax))
+      if(!is.null(normInfo)) data_list <- map2(data_list, normInfo, \(x,y) normalize_data_with_Info_wo_Inakt(x, columnSpec, y, withoutSteepPeak, dataNormMin, dataNormMax))
     }
     
     return(data_list)
@@ -581,6 +584,8 @@ shinyServer(function(input, output, session) {
     currSpec <- input$curSpecKineticsView
     data_list <- choseSelectedList(dataList,
                                    input$measurementPickerMedianView)
+    dataNormMin <- input$normMin
+    dataNormMax <- input$normMax
     
     seriesList$Median <<- input$measurementPickerMedianView 
     
@@ -589,7 +594,7 @@ shinyServer(function(input, output, session) {
     style <- input$curMedianStyle
     median_list <- map(data_list, \(x) x$medianData)
     curSpecs <- map(data_list,\(x) getSettings(x, "currentSpec"))
-    if(input$overlayPlotNorming == 1) median_list <- map2(median_list, curSpecs, \(x,y) normalize_median_data(x,y))
+    if(input$overlayPlotNorming == 1) median_list <- map2(median_list, curSpecs, \(x,y) normalize_median_data(x,y, dataNormMin, dataNormMax))
     combined_dataframe <- combineListtoLong(median_list)
     xALims <- input$rangeXlimsOverlayPlot
     xBreaks <- input$XaxisBreaks
@@ -625,6 +630,8 @@ shinyServer(function(input, output, session) {
   ###Colors###
   observeEvent(input$overlayPlot_colors, {
     colorSelected$Median <<- input$overlayPlot_colors
+    colorChoices$Median <<- input$overlayPlot_colors
+    
   }, ignoreInit = TRUE)
   
   observe({
@@ -654,6 +661,7 @@ shinyServer(function(input, output, session) {
     currSpec <- input$curSpecStatisticView
     data_list <- choseSelectedList(dataList,
                                    input$measurementPickerStatisticView)
+    
     seriesList$Statistic <<- input$measurementPickerStatisticView 
     
     colorList <- colorSelected$Statistic
@@ -694,6 +702,8 @@ shinyServer(function(input, output, session) {
   ###Colors###
   observeEvent(input$StatisticPlot_colors, {
     colorSelected$Statistic <<- input$StatisticPlot_colors
+    colorChoices$Statistic <<- input$StatisticPlot_colors
+    
   }, ignoreInit = TRUE)
   
   observe({
