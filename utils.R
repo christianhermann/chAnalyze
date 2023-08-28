@@ -599,7 +599,7 @@ increase_resolution <- function(data, increase = 10) {
     if (col != "Index") {
       y <- data[[col]]  # Select the column to interpolate
       
-      interp <- approx(x, y, xout = new_x, method = "constant")  # Interpolate y-values at new x-values
+      interp <- approx(x, y, xout = new_x, method = "linear")  # Interpolate y-values at new x-values
       
       new_data[col] <- interp$y  # Store the interpolated column in the new dataframe
     }

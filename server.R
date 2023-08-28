@@ -478,7 +478,7 @@ shinyServer(function(input, output, session) {
     style <- input$curKineticsStyle
     if(style != "Median")     combinedList <- combineListtoLong(data_list)
     if(style == "Median") {   
-      combinedList  <- calcKineticMedian(data_list)
+      combinedList  <- calcKineticMedian(data_list, currSpec)
       dataList[[input$seriesPickerKineticsView]][["medianData"]] <<- combinedList}
     kineticPlot <-
       createKineticPlot(combinedList, style =style,
