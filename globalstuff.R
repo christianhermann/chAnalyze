@@ -36,6 +36,7 @@ library(magrittr)
 library(rvg)
 library(officer)
 library(svglite)
+library(openxlsx)
 
 source("utils.R")
 isDataImported <- FALSE

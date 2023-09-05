@@ -45,7 +45,8 @@ create_app(
     "magrittr",
     "rvg",
     "officer",
-    "svglite"
+    "svglite",
+    "openxlsx"
   ),
   user_browser = "electron",
   app_desc       = "Processing, evaluation and analysis of patch clamp data",

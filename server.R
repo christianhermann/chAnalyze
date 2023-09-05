@@ -300,8 +300,8 @@ shinyServer(function(input, output, session) {
         dataMedian <- calcKineticMedian(dataStacking, getSettings(dataList[[series]], "currentSpec"))
         dataList[[seriesName]]$settings$selectedMeas <<- names(dataList[[seriesName]]$rawData)
         dataList[[seriesName]][["medianData"]] <<- dataMedian
-        
-        dataPeakTime <- calculatePeakTimes(seriesName, "normalizedSmoothedStackedData")
+
+        dataPeakTime <- calculatePeakTimes(dataList[[seriesName]][["normalizedSmoothedStackedData"]], seriesName)
         dataList[[seriesName]][["peakTimeData"]] <<- dataPeakTime
         
         updatePickerTypeKineticsView(session)
@@ -394,8 +394,8 @@ shinyServer(function(input, output, session) {
     
   }
   
-  calculatePeakTimes <- function(series, data_temp) {
-    data_list <- dataList[[series]][[data_temp]]
+  calculatePeakTimes <- function(data_list, series, data_temp) {
+   # data_list <- data_list[[data_temp]]
     stackTime <-getSettings(dataList[[series]], "stackParam")$stackTime
     currSpec <- getSettings(dataList[[series]], "currentSpec")
     timeUntilStack <- input$inputTimeUntilStack
@@ -480,6 +480,8 @@ shinyServer(function(input, output, session) {
     if(style == "Median") {   
       combinedList  <- calcKineticMedian(data_list, currSpec)
       dataList[[input$seriesPickerKineticsView]][["medianData"]] <<- combinedList}
+    dataList[[input$seriesPickerKineticsView]][["peakTimeData"]]  <<- calculatePeakTimes(data_list, input$seriesPickerKineticsView, "normalizedSmoothedStackedData")
+    
     kineticPlot <-
       createKineticPlot(combinedList, style =style,
                         pTitle = paste0(input$seriesPickerKineticsView,
@@ -588,13 +590,13 @@ shinyServer(function(input, output, session) {
     dataNormMax <- input$normMax
     
     seriesList$Median <<- input$measurementPickerMedianView 
-    
+    stackTime <- map(data_list,\(x) getSettings(x, "stackParam")$stackTime)
     colorList <- colorSelected$Median
     if(input$overlayPlot_switchColors == TRUE) colorList <- str_split_1(input$overlayPlot_colorsText,",")
     style <- input$curMedianStyle
     median_list <- map(data_list, \(x) x$medianData)
     curSpecs <- map(data_list,\(x) getSettings(x, "currentSpec"))
-    if(input$overlayPlotNorming == 1) median_list <- map2(median_list, curSpecs, \(x,y) normalize_median_data(x,y, dataNormMin, dataNormMax))
+    if(input$overlayPlotNorming == 1) median_list <- pmap(list(median_list, curSpecs, stackTime), \(x,y,z) normalize_median_data(x,y, dataNormMin, dataNormMax,z))
     combined_dataframe <- combineListtoLong(median_list)
     xALims <- input$rangeXlimsOverlayPlot
     xBreaks <- input$XaxisBreaks

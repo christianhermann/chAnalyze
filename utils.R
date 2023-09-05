@@ -512,17 +512,23 @@ normalize_data_with_Info_wo_Inakt <- function(data_list, columnSpec, normInfo, w
   return(data_list)
 }
 
-normalize_median_data <- function(median_data, columnSpec, dataNormMin, dataNormMax) {
+normalize_median_data <- function(median_data, columnSpec, dataNormMin, dataNormMax, stackTime) {
   values <- median_data$Median
   if (columnSpec == "InwardCurr") {values <- values * -1}
   smoothValues <- runmed(values, length(values)/10, na.action = "+Big_alternate")
   valuesSD <- median_data$SD
-  max_norm_Index <- which.max(smoothValues)
   
+  values_Akt <- values[median_data$Time < stackTime]
+  values_Inakt <- values[which.max(values):length(values)]
+  
+  smoothValuesAkt <- runmed(values_Akt[ round(length(values_Akt)/2) : length(values_Akt)], length(values_Akt)/20, na.action = "+Big_alternate")
+  smoothValuesInakt <- runmed(values_Inakt[(round(length(values_Inakt)/3)*2) : length(values_Inakt)], length(values_Inakt)/20, na.action = "+Big_alternate")
+  
+  max_norm_Index <- which.max(smoothValues)
   max_value <- smoothValues[max_norm_Index]
 
-  min_valueAkt <- smoothValues[which.min(smoothValues[1:max_norm_Index])]
-  min_valueInakt <- smoothValues[max_norm_Index - 1 + which.min(smoothValues[max_norm_Index:length(values)])]
+  min_valueAkt <- mean(smoothValuesAkt)
+  min_valueInakt <- mean(smoothValuesInakt)
 
   if (columnSpec == "InwardCurr") {
     newVal <-  dataNormMin + (-(dataNormMax - dataNormMin) * (values[1:max_norm_Index] - min_valueAkt) / (max_value - min_valueAkt))
@@ -672,12 +678,13 @@ get_peak_times <- function(data_frame, peakPointsBef, peakPoint, peakPointsAft, 
     peakTimesBef[i] <- data_frame$Time[idx]
   }
   
-  idx <- which(data_frame[[currSpec]] >= peakPoint)[1]
-  peakTime <- data_frame$Time[idx]
+  idxPeak <- which.min(abs(data_frame[[currSpec]]-peakPoint))[1]
+  peakTime <- data_frame$Time[idxPeak]
   
   peakTimesAft <- c()
   for (i in seq_along(peakPointsAft)) {
     idx <- which(data_frame[[currSpec]] <= peakPointsAft[i] & data_frame$Time > peakTime)[1]
+    if(peakPointsAft[i] == 0) idx <- idxPeak + which.min(abs(data_frame[[currSpec]][data_frame$Time > peakTime] - peakPointsAft[i])) - 1
     peakTimesAft[i] <- data_frame$Time[idx] - durationPhotoswitch
   }
   peakPointsBef <- paste0("$bP_{", peakPointsBef,"\\%}$")
@@ -806,9 +813,14 @@ saveDataAsR <- function(data_list, color_Choices, color_Selected, selected_Color
 }
 
 saveDataAsXlsx <- function(data_list, fileName) {
+  
+  kineticList <- map(names(data_list), \(x) choseSelectedList(data_list[[x]]$normalizedStackedData,
+                                                   data_list[[x]]$settings$selectedMeas))
   wb = createWorkbook()
+  walk(names(data_list), \(x) addWorksheet(wb, paste0("Med_",x)))
+  walk2(data_list, names(data_list), \(x,y) writeDataTable(wb,paste0("Med_",y), x$medianData))
   walk(names(data_list), \(x) addWorksheet(wb, paste0("Kin_",x)))
-  walk2(data_list, names(data_list), \(x,y) writeDataTable(wb,paste0("Kin_",y), cbind(x$medianData,combineListtoWide(x$normalizedStackedData))))
+  walk2(kineticList, names(data_list), \(x,y) writeDataTable(wb,paste0("Kin_",y), combineListtoWide(x)))
   
   walk(names(data_list), \(x) addWorksheet(wb, paste0("Ttp_",x)))
   walk2(data_list, names(data_list), \(x,y) writeDataTable(wb,paste0("Ttp_",y), {
