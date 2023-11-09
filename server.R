@@ -37,8 +37,8 @@ shinyServer(function(input, output, session) {
   })
   #### Change Workspace######
   observeEvent(input$ChangeWorkspace, {
-    wddir <- choose.dir()
-    if (!is.na(wddir))
+    wddir <- jchoose.dir()
+    if (!is_empty(wddir))
       setwd(wddir)
     volumes <<- c(Workspace = getwd(), Home = fs::path_home(), "R Installation" = R.home(), getVolumes()())
     

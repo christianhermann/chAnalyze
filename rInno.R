@@ -46,7 +46,8 @@ create_app(
     "rvg",
     "officer",
     "svglite",
-    "openxlsx"
+    "openxlsx",
+    "rChoiceDialogs"
   ),
   user_browser = "electron",
   app_desc       = "Processing, evaluation and analysis of patch clamp data",

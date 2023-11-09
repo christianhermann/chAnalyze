@@ -37,6 +37,7 @@ library(rvg)
 library(officer)
 library(svglite)
 library(openxlsx)
+library(rChoiceDialogs)
 
 source("utils.R")
 isDataImported <- FALSE
